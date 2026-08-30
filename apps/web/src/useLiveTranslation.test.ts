@@ -1,7 +1,7 @@
 import type { TranslationSegment } from '@church/contracts'
 import { describe, expect, it } from 'vitest'
 
-import { upsertTranslationSegment } from './useLiveTranslation'
+import { getMediaAccessError, upsertTranslationSegment } from './useLiveTranslation'
 
 const segment = (segmentId: string, sequence: number, source: string): TranslationSegment => ({
   segmentId,
@@ -33,5 +33,20 @@ describe('translation segment ordering', () => {
       'third-session',
     ])
     expect(updated[1]).toEqual(completedSecond)
+  })
+})
+
+describe('media access support', () => {
+  it('explains that LAN HTTP pages require HTTPS instead of throwing a TypeError', () => {
+    expect(getMediaAccessError(false, false)).toBe(
+      'Microphone access requires HTTPS. Only this computer can use http://localhost.',
+    )
+  })
+
+  it('distinguishes an unsupported browser from an insecure page', () => {
+    expect(getMediaAccessError(true, false)).toBe(
+      'This browser does not support microphone access. Use the latest Chrome or Edge.',
+    )
+    expect(getMediaAccessError(true, true)).toBe('')
   })
 })

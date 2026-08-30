@@ -39,7 +39,7 @@ export class LiveSession {
   ) {
     this.startTimer = setTimeout(() => {
       if (this.state !== "idle") return;
-      this.fail("SESSION_START_TIMEOUT", "翻译会话未及时启动，请重新开始。", true);
+      this.fail("SESSION_START_TIMEOUT", "The translation session did not start in time. Please try again.", true);
       this.socket.close(1008, "Session start timed out");
       this.disconnect();
     }, 10_000);
@@ -77,11 +77,11 @@ export class LiveSession {
     inactivityTimeoutMinutes: number,
     targetLanguages: TargetLanguage[],
   ) {
-    if (this.state !== "idle") return this.fail("INVALID_STATE", "会话已经开始。", true);
+    if (this.state !== "idle") return this.fail("INVALID_STATE", "The session has already started.", true);
     if (this.startTimer) clearTimeout(this.startTimer);
     this.startTimer = undefined;
     if (!this.config.isConfigured) {
-      return this.fail("SERVER_NOT_CONFIGURED", "服务端尚未配置 Deepgram 和 OpenAI API Key。", false);
+      return this.fail("SERVER_NOT_CONFIGURED", "The server is missing its Deepgram or OpenAI API key.", false);
     }
 
     this.state = "connecting";
@@ -96,10 +96,10 @@ export class LiveSession {
       model: this.config.deepgramModel,
       language,
       onResult: (result) => this.handleDeepgramResult(result),
-      onError: () => this.fail("TRANSCRIPTION_ERROR", "语音识别连接出现错误，请停止后重试。", false),
+      onError: () => this.fail("TRANSCRIPTION_ERROR", "The transcription connection failed. Stop and try again.", false),
       onClose: () => {
         if (this.state !== "draining" && this.state !== "closed") {
-          this.fail("TRANSCRIPTION_CLOSED", "语音识别连接已中断，请重新开始。", false);
+          this.fail("TRANSCRIPTION_CLOSED", "The transcription connection closed unexpectedly. Please restart.", false);
         }
       },
       telemetry: this.telemetry,
@@ -119,7 +119,7 @@ export class LiveSession {
       }, 3_000);
       this.limitTimer = setTimeout(() => void this.stop(), this.config.maxSessionMinutes * 60_000);
     } catch {
-      this.fail("TRANSCRIPTION_CONNECT_FAILED", "无法连接语音识别服务，请检查配置和网络。", false);
+      this.fail("TRANSCRIPTION_CONNECT_FAILED", "Cannot connect to the transcription service. Check the server configuration and network.", false);
       this.disconnect();
     }
   }
@@ -199,7 +199,7 @@ export class LiveSession {
         this.context.push(segment.source);
         while (this.context.join(" ").length > 1_200 || this.context.length > 8) this.context.shift();
       } catch {
-        this.fail("TRANSLATION_FAILED", `第 ${sequence} 段翻译失败，原文已保留。`, true);
+        this.fail("TRANSLATION_FAILED", `Translation failed for segment ${sequence}. The source text was preserved.`, true);
       } finally {
         this.telemetry("queue.translation.completed", {
           sequence,

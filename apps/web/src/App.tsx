@@ -76,7 +76,7 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
   const toggleCaption = async () => {
     const succeeded = await caption.toggle()
     setCaptionNotice(
-      succeeded ? '' : '悬浮字幕无法打开，请使用最新版 Microsoft Edge 或 Chrome。',
+      succeeded ? '' : 'Floating captions could not open. Use the latest Microsoft Edge or Chrome.',
     )
   }
   captionToggleRef.current = () => void toggleCaption()

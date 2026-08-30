@@ -135,12 +135,12 @@ export async function buildServer(config: AppConfig) {
       return socket.close(1008, "Authentication required");
     }
     if (!isAllowedOrigin(request.headers.origin, request.headers.host, config.allowedOrigins)) {
-      sendError(socket, "ORIGIN_NOT_ALLOWED", "此网页来源无权启动翻译。", false);
+      sendError(socket, "ORIGIN_NOT_ALLOWED", "This page is not allowed to start translation.", false);
       return socket.close(1008, "Origin not allowed");
     }
 
     if (sessions.size >= config.maxActiveSessions) {
-      sendError(socket, "SESSION_LIMIT", "服务器已达到活动翻译会话上限，请稍后重试。", true);
+      sendError(socket, "SESSION_LIMIT", "The server has reached its active session limit. Try again later.", true);
       return socket.close(1013, "Session limit reached");
     }
 
@@ -165,7 +165,7 @@ export async function buildServer(config: AppConfig) {
         const message = clientMessageSchema.parse(JSON.parse(data.toString()));
         void session.handleControl(message);
       } catch {
-        sendError(socket, "INVALID_MESSAGE", "收到无效的控制消息。", true);
+        sendError(socket, "INVALID_MESSAGE", "The server received an invalid control message.", true);
       }
     });
     socket.on("close", () => session.disconnect());

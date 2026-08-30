@@ -32,6 +32,16 @@ export function upsertTranslationSegment(
   return next
 }
 
+export function getMediaAccessError(isSecureContext: boolean, hasGetUserMedia: boolean) {
+  if (!isSecureContext) {
+    return 'Microphone access requires HTTPS. Only this computer can use http://localhost.'
+  }
+  if (!hasGetUserMedia) {
+    return 'This browser does not support microphone access. Use the latest Chrome or Edge.'
+  }
+  return ''
+}
+
 export function useLiveTranslation() {
   const [phase, setPhase] = useState<SessionPhase>('idle')
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
@@ -211,8 +221,17 @@ export function useLiveTranslation() {
   const start = async () => {
     setError('')
     setNotice('')
+    const mediaAccessError = getMediaAccessError(
+      window.isSecureContext,
+      Boolean(navigator.mediaDevices?.getUserMedia),
+    )
+    if (mediaAccessError) {
+      setError(mediaAccessError)
+      setPhase('error')
+      return
+    }
     if (!window.MediaRecorder || !MediaRecorder.isTypeSupported(mimeType)) {
-      setError('当前浏览器不支持 Opus 录音，请使用最新版 Chrome、Edge 或 Firefox。')
+      setError('This browser does not support Opus recording. Use the latest Chrome, Edge, or Firefox.')
       setPhase('error')
       return
     }
@@ -257,12 +276,12 @@ export function useLiveTranslation() {
         try {
           handleServerMessage(JSON.parse(event.data as string) as ServerMessage, socket)
         } catch {
-          setError('服务端返回了无法识别的数据。')
+          setError('The server returned an invalid response.')
         }
       }
       socket.onerror = () => {
         if (socketRef.current !== socket) return
-        setError('无法连接翻译服务，请确认后端已启动。')
+        setError('Cannot connect to the translation service. Confirm that the server is running.')
         setPhase('error')
       }
       socket.onclose = () => {
@@ -274,15 +293,7 @@ export function useLiveTranslation() {
     } catch (caught) {
       releaseMedia()
       setPhase('error')
-      setError(
-        caught instanceof DOMException && caught.name === 'NotAllowedError'
-          ? inputMode === 'system'
-            ? '系统音频共享已取消。请重新开始，并在共享窗口中启用音频。'
-            : '麦克风权限被拒绝，请在浏览器地址栏中允许后重试。'
-          : caught instanceof Error
-            ? caught.message
-            : '无法打开音频输入，请检查设备是否可用。',
-      )
+      setError(getAudioInputError(caught, inputMode))
     }
   }
 
@@ -337,7 +348,7 @@ export function useLiveTranslation() {
 
 async function captureSystemAudio() {
   if (!navigator.mediaDevices?.getDisplayMedia) {
-    throw new Error('当前浏览器不支持系统音频共享，请使用最新版 Microsoft Edge 或 Chrome。')
+    throw new Error('System audio sharing is not supported. Use the latest Microsoft Edge or Chrome.')
   }
 
   const displayStream = await navigator.mediaDevices.getDisplayMedia({
@@ -353,11 +364,26 @@ async function captureSystemAudio() {
 
   if (audioTracks.length === 0) {
     displayStream.getTracks().forEach((track) => track.stop())
-    throw new Error('没有收到系统声音。请重新共享“整个屏幕”，并勾选“共享系统音频”。')
+    throw new Error('No system audio was received. Share the entire screen and enable system audio.')
   }
 
   return {
     audioStream: new MediaStream(audioTracks),
     displayStream,
   }
+}
+
+function getAudioInputError(error: unknown, inputMode: AudioInputMode) {
+  if (error instanceof DOMException && error.name === 'NotAllowedError') {
+    return inputMode === 'system'
+      ? 'System audio sharing was cancelled. Start again and enable audio in the sharing dialog.'
+      : 'Microphone permission was denied. Allow microphone access in the browser and try again.'
+  }
+  if (error instanceof DOMException && error.name === 'NotFoundError') {
+    return inputMode === 'system'
+      ? 'No system audio source is available.'
+      : 'No microphone was found. Connect a microphone and try again.'
+  }
+  if (error instanceof Error && error.message) return error.message
+  return 'Cannot open the audio input. Check that the device is available.'
 }
