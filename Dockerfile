@@ -24,7 +24,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/apps/web/dist apps/web/dist
 COPY --from=build /app/apps/server/dist apps/server/dist
 COPY packages/contracts/src packages/contracts/src
-RUN mkdir -p /app/data && chown node:node /app/data
+RUN mkdir -p /app/data /app/log && chown node:node /app/data /app/log
 
 USER node
 EXPOSE 3000

@@ -14,8 +14,11 @@ import { z } from "zod";
 import { AuthStore, type AuthUser } from "./auth/auth-store";
 import type { AppConfig } from "./config";
 import { LiveSession } from "./sessions/live-session";
+import { SourceTranscriptWriter } from "./transcripts/source-transcript-writer";
 
 export async function buildServer(config: AppConfig) {
+  const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
+  const logDirectory = path.resolve(moduleDirectory, "../../../log");
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -143,10 +146,13 @@ export async function buildServer(config: AppConfig) {
 
     let session: LiveSession;
     const removeSession = () => sessions.delete(session);
+    const sourceTranscript = new SourceTranscriptWriter(logDirectory, (error) => {
+      app.log.error({ event: "source.transcript.error", error }, "source.transcript.error");
+    });
     session = new LiveSession(socket, config, removeSession, (event, details = {}) => {
       const log = event.endsWith(".error") ? app.log.error.bind(app.log) : app.log.debug.bind(app.log);
       log({ event, sessionId: session.id, ...details }, event);
-    });
+    }, sourceTranscript);
     sessions.add(session);
 
     socket.on("message", (data, isBinary) => {
@@ -167,7 +173,7 @@ export async function buildServer(config: AppConfig) {
     },
   );
 
-  const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../web/dist");
+  const webRoot = path.resolve(moduleDirectory, "../../web/dist");
   if (existsSync(webRoot)) {
     await app.register(staticPlugin, { root: webRoot, wildcard: false });
   }

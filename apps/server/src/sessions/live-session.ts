@@ -7,6 +7,7 @@ import type { AppConfig } from "../config";
 import { DeepgramLiveClient, type DeepgramResult } from "../deepgram/client";
 import { SermonTranslator } from "../openai/translator";
 import type { ApiTelemetry } from "../telemetry";
+import type { SourceTranscriptWriter } from "../transcripts/source-transcript-writer";
 import { SegmentBuffer, type BufferedSegment } from "./segment-buffer";
 
 type State = "idle" | "connecting" | "listening" | "paused" | "draining" | "closed";
@@ -34,6 +35,7 @@ export class LiveSession {
     private readonly config: AppConfig,
     private readonly onClosed: () => void,
     private readonly telemetry: ApiTelemetry,
+    private readonly sourceTranscript?: SourceTranscriptWriter,
   ) {
     this.startTimer = setTimeout(() => {
       if (this.state !== "idle") return;
@@ -144,6 +146,7 @@ export class LiveSession {
     const remaining = this.buffer.flush();
     if (remaining) this.enqueueTranslation(remaining);
     await this.translationQueue;
+    await this.sourceTranscript?.flush();
 
     this.send({ type: "session.closed" });
     this.state = "closed";
@@ -166,6 +169,7 @@ export class LiveSession {
     const sequence = ++this.sequence;
     const segmentId = randomUUID();
     const queuedAt = performance.now();
+    this.sourceTranscript?.append(segment.source);
     this.send({ type: "transcript.final", segmentId, sequence, ...segment });
     this.queueDepth += 1;
     this.send({ type: "session.status", status: "translating", queueDepth: this.queueDepth });

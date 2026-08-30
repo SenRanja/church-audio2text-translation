@@ -6,6 +6,7 @@ services:
       - "127.0.0.1:3000:3000"
     volumes:
       - church-auth-data:/app/data
+      - church-source-logs:/app/log
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
@@ -16,3 +17,4 @@ services:
 
 volumes:
   church-auth-data:
+  church-source-logs:

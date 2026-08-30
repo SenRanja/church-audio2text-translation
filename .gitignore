@@ -21,6 +21,7 @@ dist/
 .vscode/
 *.log
 data/
+log/
 
 
 

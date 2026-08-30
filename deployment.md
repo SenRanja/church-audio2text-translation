@@ -154,7 +154,7 @@ npm run typecheck
 npm run build
 ```
 
-项目不在服务端保存字幕，但账户和登录会话位于 `data/auth.sqlite`。Compose 使用 `church-auth-data` 卷持久化该目录；升级或迁移前应停止容器并备份该卷。不要把数据库或 `.env` 放进普通源码归档，备份文件应限制读取权限。
+账户和登录会话位于 `data/auth.sqlite`。每个任务的稳定 source 原文保存为 `/app/log/YYYY-MM-DD_HH-mm-ss.txt`，不保存音频、interim 文本或目标语言翻译。Compose 分别使用 `church-auth-data` 和 `church-source-logs` 卷持久化数据库与 source 文本；升级或迁移前应停止容器并备份两个卷。数据库、source 文本和 `.env` 都不应放进普通源码归档，备份文件必须限制读取权限。
 
 ## 6. 回滚
 
@@ -172,6 +172,7 @@ docker compose up --build -d church-translation
 - `ALLOWED_ORIGINS` 只包含真实的 HTTPS 控制页面 Origin。
 - `AUTH_COOKIE_SECURE=true`，登录失败响应不区分用户名或密码错误。
 - `church-auth-data` 卷已纳入受限的备份流程，数据库文件不会提交到版本控制。
+- `church-source-logs` 卷已配置保留期限、容量监控和安全删除流程；其中包含讲道 source 原文。
 - 3000 端口只能由本机反向代理访问。
 - 第三方 API 账户已设置消费提醒和适当限额。
 - 固定种子管理员之外仍有教会网络/IP allowlist 或 VPN 保护。

@@ -171,4 +171,47 @@ describe("LiveSession inactivity timeout", () => {
     );
     session.disconnect();
   });
+
+  it("saves only finalized source segments", async () => {
+    const sourceTranscript = { append: vi.fn(), flush: vi.fn() };
+    const send = vi.fn();
+    const socket = {
+      OPEN: 1,
+      readyState: 1,
+      send,
+      close: vi.fn(),
+    } as unknown as WebSocket;
+    const session = new LiveSession(
+      socket,
+      loadConfig({
+        DEEPGRAM_API_KEY: "test-deepgram-key",
+        OPENAI_API_KEY: "test-openai-key",
+      }),
+      vi.fn(),
+      vi.fn(),
+      sourceTranscript as never,
+    );
+
+    await session.handleControl({
+      type: "session.start",
+      sourceLanguage: "en-AU",
+      targetLanguages: ["zh-Hans"],
+      mimeType: "audio/webm;codecs=opus",
+      inactivityTimeoutMinutes: 15,
+    });
+    deepgram.onResult?.(result("Temporary words"));
+    expect(sourceTranscript.append).not.toHaveBeenCalled();
+
+    deepgram.onResult?.({
+      transcript: "Grace and peace.",
+      isFinal: true,
+      speechFinal: true,
+      fromFinalize: false,
+      startMs: 0,
+      endMs: 1_000,
+    });
+    expect(sourceTranscript.append).toHaveBeenCalledOnce();
+    expect(sourceTranscript.append).toHaveBeenCalledWith("Grace and peace.");
+    session.disconnect();
+  });
 });
