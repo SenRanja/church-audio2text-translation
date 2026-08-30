@@ -1,0 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,650&family=Noto+Sans+SC:wght@400;600&family=Noto+Sans:wght@400;600;700&display=swap');
+
+:root {
+  --canvas: #edf1ef;
+  --surface: #ffffff;
+  --surface-soft: #f7f9f8;
+  --surface-strong: #e8edeb;
+  --ink: #172321;
+  --ink-soft: #344541;
+  --muted: #687570;
+  --muted-light: #929d98;
+  --line: #dde3e0;
+  --line-dark: #c5ceca;
+  --navy: #19535f;
+  --red: #b43e36;
+  --green: #1b7e58;
+  --gold: #bf8e24;
+  --display: 'Newsreader', Georgia, serif;
+  --sans: 'Noto Sans', 'Noto Sans SC', sans-serif;
+  --mono: 'IBM Plex Mono', 'Liberation Mono', monospace;
+  --shadow: 0 8px 30px rgba(25, 46, 41, .08), 0 1px 3px rgba(25, 46, 41, .08);
+
+  color: var(--ink-soft);
+  background: var(--canvas);
+  font-family: var(--sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+html { min-width: 320px; background: var(--canvas); }
+body { margin: 0; min-width: 320px; min-height: 100svh; }
+button, select { letter-spacing: 0; }

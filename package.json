@@ -1,0 +1,25 @@
+{
+  "name": "church-translation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @church/web && npm run build --workspace @church/server",
+    "dev": "concurrently -n server,web -c red,blue \"npm run dev --workspace @church/server\" \"npm run dev --workspace @church/web\"",
+    "start": "npm run start --workspace @church/server",
+    "test": "vitest run",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
