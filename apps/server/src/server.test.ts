@@ -106,6 +106,25 @@ describe("WebSocket session capacity", () => {
 });
 
 describe("authentication", () => {
+  it("rejects public streams without exactly two distinct supported languages", async () => {
+    const app = await buildServer(loadConfig({ AUTH_DB_PATH: ":memory:", LOG_LEVEL: "silent" }));
+    await app.ready();
+    try {
+      const missing = await app.inject({ method: "GET", url: "/api/public/live/FOCUS-Jayd" });
+      const duplicate = await app.inject({
+        method: "GET",
+        url: "/api/public/live/FOCUS-Jayd?languages=en,en",
+      });
+      const unsupported = await app.inject({
+        method: "GET",
+        url: "/api/public/live/FOCUS-Jayd?languages=en,fr",
+      });
+      expect([missing.statusCode, duplicate.statusCode, unsupported.statusCode]).toEqual([400, 400, 400]);
+    } finally {
+      await app.close();
+    }
+  });
+
   it("applies admin session settings and carries each user's prompt into translation sessions", async () => {
     const app = await buildServer(
       loadConfig({
@@ -175,6 +194,19 @@ describe("authentication", () => {
       });
       expect(expiredTerminal.json()).toEqual({ user: null });
 
+      const defaultPrompt = "Use the church's preferred translation style.";
+      const savedDefault = await app.inject({
+        method: "PUT",
+        url: "/api/auth/prompt",
+        headers: { ...origin, cookie: adminCookie },
+        payload: { prompt: defaultPrompt },
+      });
+      expect(savedDefault.json()).toEqual({
+        prompt: defaultPrompt,
+        usingDefault: true,
+        editsChurchDefault: true,
+      });
+
       const prompt = "Translate for children and keep sentences short.";
       const savedPrompt = await app.inject({
         method: "PUT",
@@ -182,7 +214,7 @@ describe("authentication", () => {
         headers: { ...origin, cookie: secondCookie },
         payload: { prompt },
       });
-      expect(savedPrompt.json()).toEqual({ prompt, usingDefault: false });
+      expect(savedPrompt.json()).toEqual({ prompt, usingDefault: false, editsChurchDefault: false });
 
       const socket = await app.injectWS("/ws/session", {
         headers: { ...origin, cookie: secondCookie },
@@ -190,6 +222,24 @@ describe("authentication", () => {
       } as unknown as Partial<IncomingMessage>);
       sockets.push(socket);
       expect(sessions.prompts.at(-1)).toBe(prompt);
+
+      const thirdLogin = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        headers: origin,
+        payload: { username: "prompt-user", password: "secure-pass" },
+      });
+      const thirdCookie = sessionCookie(thirdLogin.headers["set-cookie"]);
+      const restored = await app.inject({
+        method: "GET",
+        url: "/api/auth/prompt",
+        headers: { cookie: thirdCookie },
+      });
+      expect(restored.json()).toEqual({
+        prompt: defaultPrompt,
+        usingDefault: true,
+        editsChurchDefault: false,
+      });
     } finally {
       sockets.forEach((socket) => socket.terminate());
       await app.close();

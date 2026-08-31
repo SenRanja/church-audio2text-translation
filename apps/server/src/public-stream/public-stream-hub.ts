@@ -5,13 +5,14 @@ import type {
   SourceLanguage,
   TargetLanguage,
   TranslationSegment,
+  ViewerLanguages,
 } from "@church/contracts";
 
 type Listener = (event: PublicLiveEvent) => void;
 
 interface Channel {
   snapshot: PublicLiveSnapshot;
-  listeners: Set<Listener>;
+  listeners: Map<Listener, ViewerLanguages>;
 }
 
 const maximumCachedSegments = 100;
@@ -19,9 +20,9 @@ const maximumCachedSegments = 100;
 export class PublicStreamHub {
   private readonly channels = new Map<string, Channel>();
 
-  subscribe(username: string, listener: Listener) {
+  subscribe(username: string, languages: ViewerLanguages, listener: Listener) {
     const channel = this.getChannel(username);
-    channel.listeners.add(listener);
+    channel.listeners.set(listener, languages);
     listener({ type: "snapshot", snapshot: cloneSnapshot(channel.snapshot) });
     return () => {
       channel.listeners.delete(listener);
@@ -29,6 +30,14 @@ export class PublicStreamHub {
         this.channels.delete(normalizeUsername(username));
       }
     };
+  }
+
+  getRequestedLanguages(username: string) {
+    const languages = new Set<TargetLanguage>();
+    for (const selected of this.channels.get(normalizeUsername(username))?.listeners.values() ?? []) {
+      selected.forEach((language) => languages.add(language));
+    }
+    return [...languages];
   }
 
   start(
@@ -101,14 +110,14 @@ export class PublicStreamHub {
     const key = normalizeUsername(username);
     let channel = this.channels.get(key);
     if (!channel) {
-      channel = { snapshot: offlineSnapshot(username), listeners: new Set() };
+      channel = { snapshot: offlineSnapshot(username), listeners: new Map() };
       this.channels.set(key, channel);
     }
     return channel;
   }
 
   private notify(channel: Channel, event: PublicLiveEvent) {
-    for (const listener of channel.listeners) listener(event);
+    for (const listener of channel.listeners.keys()) listener(event);
   }
 }
 

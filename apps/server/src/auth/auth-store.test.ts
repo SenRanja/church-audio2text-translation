@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { AuthStore } from "./auth-store";
@@ -53,13 +54,41 @@ describe("AuthStore persistence", () => {
     store.close();
   });
 
-  it("stores a separate custom prompt for each user", async () => {
-    const store = await AuthStore.open(":memory:");
-    const first = await store.createUser("first-user", "persistent-password");
-    const second = await store.createUser("second-user", "persistent-password");
+  it("persists the church default but clears a user's custom prompt on login", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "church-auth-prompt-"));
+    temporaryDirectories.push(directory);
+    const databasePath = path.join(directory, "auth.sqlite");
+    const store = await AuthStore.open(databasePath);
+    const user = await store.createUser("prompt-user", "persistent-password");
+    store.updateDefaultPrompt("Church default prompt");
+    const first = store.createSession(user.id);
+    expect(store.updateSessionPrompt(first.token, "Temporary custom prompt")).toBe(true);
+    expect(store.getSessionUser(first.token)?.customPrompt).toBe("Temporary custom prompt");
 
-    expect(store.updateUserPrompt(first.id, "Translate for children")?.customPrompt).toBe("Translate for children");
-    expect(store.listUsers().find((user) => user.id === second.id)?.customPrompt).toBe("");
+    const second = store.createSession(user.id);
+    expect(store.getSessionUser(first.token)).toBeNull();
+    expect(store.getSessionUser(second.token)?.customPrompt).toBe("");
     store.close();
+
+    const reopened = await AuthStore.open(databasePath);
+    expect(reopened.getDefaultPrompt()).toBe("Church default prompt");
+    reopened.close();
+  });
+
+  it("migrates the seed admin's legacy prompt to the church default", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "church-auth-legacy-prompt-"));
+    temporaryDirectories.push(directory);
+    const databasePath = path.join(directory, "auth.sqlite");
+    const store = await AuthStore.open(databasePath);
+    store.close();
+
+    const database = new Database(databasePath);
+    database.prepare("UPDATE users SET custom_prompt = ? WHERE username = ?")
+      .run("Legacy admin prompt", "FOCUS-Jayd");
+    database.close();
+
+    const reopened = await AuthStore.open(databasePath);
+    expect(reopened.getDefaultPrompt()).toBe("Legacy admin prompt");
+    reopened.close();
   });
 });

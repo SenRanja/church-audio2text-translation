@@ -7,8 +7,8 @@ describe("PublicStreamHub", () => {
     const hub = new PublicStreamHub();
     const kevin = vi.fn();
     const jayd = vi.fn();
-    hub.subscribe("FOCUS-Kevin", kevin);
-    hub.subscribe("FOCUS-Jayd", jayd);
+    hub.subscribe("FOCUS-Kevin", ["en", "zh-Hans"], kevin);
+    hub.subscribe("FOCUS-Jayd", ["ja", "ko"], jayd);
 
     hub.start("FOCUS-Kevin", "session-one", "en-AU", ["en", "zh-Hans", "id"]);
     hub.publish("FOCUS-Kevin", "session-one", {
@@ -44,5 +44,17 @@ describe("PublicStreamHub", () => {
 
     hub.end("focus-kevin", "session-two");
     expect(kevin.mock.calls.at(-1)?.[0]).toEqual({ type: "offline" });
+  });
+
+  it("deduplicates viewer languages and removes demand on disconnect", () => {
+    const hub = new PublicStreamHub();
+    const disconnectFirst = hub.subscribe("FOCUS-Jayd", ["en", "zh-Hans"], vi.fn());
+    const disconnectSecond = hub.subscribe("focus-jayd", ["zh-Hans", "id"], vi.fn());
+
+    expect(hub.getRequestedLanguages("FOCUS-JAYD")).toEqual(["en", "zh-Hans", "id"]);
+    disconnectFirst();
+    expect(hub.getRequestedLanguages("FOCUS-Jayd")).toEqual(["zh-Hans", "id"]);
+    disconnectSecond();
+    expect(hub.getRequestedLanguages("FOCUS-Jayd")).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clientMessageSchema } from "./index";
+import { clientMessageSchema, viewerLanguagesSchema } from "./index";
 
 describe("clientMessageSchema", () => {
   it("accepts the supported browser audio session", () => {
@@ -79,5 +79,14 @@ describe("clientMessageSchema", () => {
         mimeType: "audio/mp4",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("viewerLanguagesSchema", () => {
+  it("requires exactly two distinct supported languages", () => {
+    expect(viewerLanguagesSchema.safeParse(["en", "zh-Hans"]).success).toBe(true);
+    expect(viewerLanguagesSchema.safeParse(["en"]).success).toBe(false);
+    expect(viewerLanguagesSchema.safeParse(["en", "en"]).success).toBe(false);
+    expect(viewerLanguagesSchema.safeParse(["en", "fr"]).success).toBe(false);
   });
 });

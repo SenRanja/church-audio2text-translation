@@ -1,4 +1,4 @@
-import { LogOut, RotateCcw, Save, Trash2, UserPlus, UserRound, X } from 'lucide-react'
+import { Download, FileText, LogOut, RotateCcw, Save, Trash2, UserPlus, UserRound, X } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 
 import type { CurrentUser } from './AuthApp'
@@ -10,6 +10,15 @@ interface AuthSettings {
 interface PromptResult {
   prompt: string
   usingDefault: boolean
+  editsChurchDefault: boolean
+}
+
+type PromptSaveState = 'saved' | 'dirty' | 'saving' | 'error'
+
+interface TranscriptSummary {
+  id: string
+  filename: string
+  createdAt: number
 }
 
 export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<void> }) {
@@ -23,6 +32,9 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
   })
   const [prompt, setPrompt] = useState('')
   const [usingDefaultPrompt, setUsingDefaultPrompt] = useState(true)
+  const [editsChurchDefault, setEditsChurchDefault] = useState(user.isSeed)
+  const [promptSaveState, setPromptSaveState] = useState<PromptSaveState>('saved')
+  const [transcripts, setTranscripts] = useState<TranscriptSummary[]>([])
 
   const loadUsers = async () => {
     if (user.role !== 'admin') return
@@ -37,14 +49,20 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
 
   const loadAccountData = async () => {
     setError(false)
-    const promptResponse = await fetch('/api/auth/prompt')
-    if (!promptResponse.ok) {
+    const [promptResponse, transcriptResponse] = await Promise.all([
+      fetch('/api/auth/prompt'),
+      fetch('/api/auth/transcripts'),
+    ])
+    if (!promptResponse.ok || !transcriptResponse.ok) {
       setError(true)
       return
     }
     const promptResult = (await promptResponse.json()) as PromptResult
     setPrompt(promptResult.prompt)
     setUsingDefaultPrompt(promptResult.usingDefault)
+    setEditsChurchDefault(promptResult.editsChurchDefault)
+    setPromptSaveState('saved')
+    setTranscripts(((await transcriptResponse.json()) as { transcripts: TranscriptSummary[] }).transcripts)
 
     if (user.role !== 'admin') return
     const [usersResponse, settingsResponse] = await Promise.all([
@@ -103,18 +121,23 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
 
   const updatePrompt = async (nextPrompt: string) => {
     setError(false)
-    const response = await fetch('/api/auth/prompt', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ prompt: nextPrompt }),
-    })
-    if (!response.ok) {
+    setPromptSaveState('saving')
+    try {
+      const response = await fetch('/api/auth/prompt', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prompt: nextPrompt }),
+      })
+      if (!response.ok) throw new Error('Prompt update failed')
+      const result = (await response.json()) as PromptResult
+      setPrompt(result.prompt)
+      setUsingDefaultPrompt(result.usingDefault)
+      setEditsChurchDefault(result.editsChurchDefault)
+      setPromptSaveState('saved')
+    } catch {
       setError(true)
-      return
+      setPromptSaveState('error')
     }
-    const result = (await response.json()) as PromptResult
-    setPrompt(result.prompt)
-    setUsingDefaultPrompt(result.usingDefault)
   }
 
   return (
@@ -216,7 +239,15 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
           <section className="account-section account-prompt">
             <div className="account-section-heading">
               <span><strong>Translation prompt</strong><small>{usingDefaultPrompt ? 'Church default' : 'Custom'}</small></span>
+              <span className={`prompt-save-status status-${promptSaveState}`} role="status">
+                <i /> {promptStatusLabel(promptSaveState)}
+              </span>
             </div>
+            <p className="account-prompt-note">
+              {editsChurchDefault
+                ? 'Changes here update the Church default prompt for every user.'
+                : 'A custom prompt applies only to this login and is not saved after you sign in again.'}
+            </p>
             <textarea
               aria-label="Translation prompt"
               value={prompt}
@@ -224,17 +255,46 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
               rows={8}
               onChange={(event) => {
                 setPrompt(event.target.value)
-                setUsingDefaultPrompt(false)
+                if (!editsChurchDefault) setUsingDefaultPrompt(false)
+                setPromptSaveState('dirty')
               }}
             />
             <div className="prompt-actions">
               <button type="button" onClick={() => void updatePrompt('')}>
-                <RotateCcw size={15} /> Use church default
+                <RotateCcw size={15} /> {editsChurchDefault ? 'Use built-in default' : 'Use church default'}
               </button>
-              <button type="button" onClick={() => void updatePrompt(prompt)}>
-                <Save size={15} /> Save prompt
+              <button
+                className={promptSaveState === 'saving' ? 'is-saving' : ''}
+                type="button"
+                disabled={promptSaveState === 'saving'}
+                onClick={() => void updatePrompt(prompt)}
+              >
+                <Save size={15} /> {promptSaveState === 'saving' ? 'Saving' : 'Save prompt'}
               </button>
             </div>
+          </section>
+
+          <section className="account-section account-transcripts">
+            <div className="account-section-heading">
+              <span><strong>Source transcripts</strong><small>Latest 14</small></span>
+            </div>
+            {transcripts.length === 0 ? (
+              <p className="account-empty">No source transcripts yet.</p>
+            ) : (
+              <div className="transcript-list">
+                {transcripts.map((transcript) => (
+                  <a
+                    key={transcript.id}
+                    href={`/api/auth/transcripts/${encodeURIComponent(transcript.id)}`}
+                    download={transcript.filename}
+                  >
+                    <FileText size={16} />
+                    <span><strong>{formatTranscriptDate(transcript.createdAt)}</strong><small>{transcript.filename}</small></span>
+                    <Download size={16} />
+                  </a>
+                ))}
+              </div>
+            )}
           </section>
 
           {error && <p className="account-error" role="alert">Error</p>}
@@ -246,4 +306,15 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
       )}
     </div>
   )
+}
+
+function promptStatusLabel(state: PromptSaveState) {
+  if (state === 'dirty') return 'Unsaved'
+  if (state === 'saving') return 'Saving'
+  if (state === 'error') return 'Error'
+  return 'Saved'
+}
+
+function formatTranscriptDate(createdAt: number) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(createdAt)
 }

@@ -16,6 +16,7 @@ interface PublicSessionPublisher {
   start(sessionId: string, sourceLanguage: SourceLanguage, targetLanguages: TargetLanguage[]): void;
   publish(sessionId: string, message: ServerMessage): void;
   end(sessionId: string): void;
+  requestedLanguages?(): TargetLanguage[];
 }
 
 export class LiveSession {
@@ -199,6 +200,10 @@ export class LiveSession {
     this.send({ type: "transcript.final", segmentId, sequence, ...segment });
     this.queueDepth += 1;
     this.send({ type: "session.status", status: "translating", queueDepth: this.queueDepth });
+    const translationLanguages = [...new Set([
+      ...this.targetLanguages,
+      ...(this.publicPublisher?.requestedLanguages?.() ?? []),
+    ])];
 
     this.translationQueue = this.translationQueue.then(async () => {
       const translationStartedAt = performance.now();
@@ -212,16 +217,21 @@ export class LiveSession {
           segment.source,
           [...this.context],
           sequence,
-          this.targetLanguages,
+          translationLanguages,
         );
         if (!translation) throw new Error("Translator unavailable");
-        this.send({
+        const publicMessage: ServerMessage = {
           type: "translation.final",
           segmentId,
           sequence,
           ...segment,
           translations: translation,
-        });
+        };
+        this.publicPublisher?.publish(this.id, publicMessage);
+        this.send({
+          ...publicMessage,
+          translations: selectTranslations(translation, this.targetLanguages),
+        }, false);
         this.context.push(segment.source);
         while (this.context.join(" ").length > 1_200 || this.context.length > 8) this.context.shift();
       } catch {
@@ -263,8 +273,17 @@ export class LiveSession {
     this.send({ type: "error", code, message, recoverable });
   }
 
-  private send(message: ServerMessage) {
-    this.publicPublisher?.publish(this.id, message);
+  private send(message: ServerMessage, publish = true) {
+    if (publish) this.publicPublisher?.publish(this.id, message);
     if (this.socket.readyState === this.socket.OPEN) this.socket.send(JSON.stringify(message));
   }
+}
+
+function selectTranslations(
+  translations: Partial<Record<TargetLanguage, string>>,
+  languages: TargetLanguage[],
+) {
+  return Object.fromEntries(
+    languages.flatMap((language) => translations[language] ? [[language, translations[language]]] : []),
+  );
 }

@@ -105,8 +105,22 @@
 .account-list strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; }
 .account-list button:not(:disabled):hover { color: var(--red); background: rgba(180, 62, 54, .08); }
 .account-prompt textarea { width: 100%; min-height: 150px; padding: 10px; resize: vertical; color: var(--ink); border: 1px solid var(--line-dark); border-radius: 5px; background: white; font: 11px/1.45 monospace; }
+.account-prompt-note { margin: -2px 0 9px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.prompt-save-status { display: inline-flex !important; grid-auto-flow: column; align-items: center; justify-content: end; gap: 6px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; white-space: nowrap; }
+.prompt-save-status i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(27, 126, 88, .12); }
+.prompt-save-status.status-dirty i, .prompt-save-status.status-saving i { background: var(--gold); box-shadow: 0 0 0 3px rgba(191, 142, 36, .14); }
+.prompt-save-status.status-error i { background: var(--red); box-shadow: 0 0 0 3px rgba(180, 62, 54, .12); }
 .prompt-actions { margin-top: 8px; display: flex; justify-content: flex-end; gap: 7px; }
 .prompt-actions button:last-child { color: white; background: var(--navy); }
+.prompt-actions button:active:not(:disabled) { transform: translateY(1px) scale(.98); filter: brightness(.9); }
+.prompt-actions button.is-saving { color: white; background: var(--green); }
+.account-empty { margin: 0; color: var(--muted); font-size: 11px; }
+.transcript-list { border-top: 1px solid var(--line); }
+.transcript-list a { min-height: 48px; display: grid; grid-template-columns: 20px minmax(0, 1fr) 20px; align-items: center; gap: 8px; color: var(--muted); border-bottom: 1px solid var(--line); text-decoration: none; }
+.transcript-list a:hover { color: var(--navy); background: var(--surface-strong); }
+.transcript-list span { min-width: 0; display: grid; gap: 1px; }
+.transcript-list strong { color: var(--ink); font-size: 11px; }
+.transcript-list small { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .logout-button { width: 100%; height: 40px; margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--ink-soft); background: var(--surface-strong); font: inherit; font-size: 12px; font-weight: 700; }
 
 @media (max-width: 760px) {

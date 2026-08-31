@@ -12,6 +12,11 @@ export const sourceLanguageSchema = z.enum([
 ]);
 
 export const targetLanguageSchema = z.enum(["en", "zh-Hans", "zh-Hant", "ja", "ko", "id"]);
+export const viewerLanguagesSchema = z
+  .tuple([targetLanguageSchema, targetLanguageSchema])
+  .refine(([first, second]) => first !== second, {
+    message: "Viewer languages must be unique",
+  });
 export const inputModeSchema = z.enum(["microphone", "system"]);
 export const targetLanguagesSchema = z
   .array(targetLanguageSchema)
@@ -24,6 +29,7 @@ export const targetLanguagesSchema = z
 
 export type SourceLanguage = z.infer<typeof sourceLanguageSchema>;
 export type TargetLanguage = z.infer<typeof targetLanguageSchema>;
+export type ViewerLanguages = z.infer<typeof viewerLanguagesSchema>;
 export type TranslationMap = Partial<Record<TargetLanguage, string>>;
 
 export const clientMessageSchema = z.discriminatedUnion("type", [

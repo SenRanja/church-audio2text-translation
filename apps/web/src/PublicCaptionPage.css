@@ -36,7 +36,8 @@
 .public-translation-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); }
 .public-translation-pane > header { min-height: 72px; padding: 12px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); background: var(--surface-soft); }
 .public-translation-pane > header div { min-width: 0; display: grid; }
-.public-translation-pane > header strong { color: var(--ink); font-family: var(--display); font-size: 21px; font-weight: 600; }
+.public-translation-pane > header select { max-width: 100%; padding: 0 25px 0 0; color: var(--ink); border: 0; background: transparent; font-family: var(--display); font-size: 21px; font-weight: 600; cursor: pointer; }
+.public-translation-pane > header select:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; }
 .public-translation-pane > header small { margin-top: 2px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
 .public-translation-pane > header > span { color: var(--navy); font-family: var(--mono); font-size: 18px; }
 .public-segment-list { height: calc(100svh - 254px); min-height: 360px; padding: 5px 22px 18px; overflow-y: auto; }
@@ -48,6 +49,7 @@
 .public-translating i { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: public-typing 1s ease-in-out infinite; }
 .public-translating i:nth-child(2) { animation-delay: .15s; }
 .public-translating i:nth-child(3) { animation-delay: .3s; }
+.public-segment p.public-not-available { color: var(--muted-light); font-size: 13px; font-style: italic; }
 .public-source { min-height: 88px; padding: 13px 20px; display: grid; grid-template-columns: minmax(150px, 210px) 1fr; align-items: center; gap: 18px; border-top: 3px solid var(--navy); background: var(--surface); box-shadow: var(--shadow); }
 .public-source > div { display: grid; }
 .public-source span { color: var(--red); font-size: 10px; font-weight: 800; text-transform: uppercase; }

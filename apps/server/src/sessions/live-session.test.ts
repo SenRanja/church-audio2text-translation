@@ -224,10 +224,15 @@ describe("LiveSession inactivity timeout", () => {
     session.disconnect();
   });
 
-  it("reuses outbound session events for the public stream", async () => {
+  it("translates the operator and viewer language union once and filters operator output", async () => {
     vi.useFakeTimers();
-    translator.translate.mockResolvedValue({ "zh-Hans": "恩典与平安。" });
-    const publicPublisher = { start: vi.fn(), publish: vi.fn(), end: vi.fn() };
+    translator.translate.mockResolvedValue({ "zh-Hans": "恩典与平安。", id: "Kasih karunia dan damai." });
+    const publicPublisher = {
+      start: vi.fn(),
+      publish: vi.fn(),
+      end: vi.fn(),
+      requestedLanguages: vi.fn(() => ["zh-Hans", "id"] as Array<"zh-Hans" | "id">),
+    };
     const socket = {
       OPEN: 1,
       readyState: 1,
@@ -266,9 +271,15 @@ describe("LiveSession inactivity timeout", () => {
       endMs: 1_000,
     });
     await vi.advanceTimersByTimeAsync(0);
+    expect(translator.translate).toHaveBeenCalledOnce();
+    expect(translator.translate).toHaveBeenCalledWith("Grace and peace.", [], 1, ["zh-Hans", "id"]);
+    expect(socket.send).toHaveBeenCalledWith(expect.stringContaining('"translations":{"zh-Hans":"恩典与平安。"}'));
     expect(publicPublisher.publish).toHaveBeenCalledWith(
       session.id,
-      expect.objectContaining({ type: "translation.final", translations: { "zh-Hans": "恩典与平安。" } }),
+      expect.objectContaining({
+        type: "translation.final",
+        translations: { "zh-Hans": "恩典与平安。", id: "Kasih karunia dan damai." },
+      }),
     );
 
     await session.handleControl({ type: "session.stop" });

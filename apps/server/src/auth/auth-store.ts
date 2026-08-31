@@ -30,10 +30,12 @@ interface UserRow {
   is_seed: number;
   created_at: number;
   custom_prompt: string;
+  session_custom_prompt?: string;
 }
 
 interface SettingsRow {
   session_lifetime_hours: number;
+  default_prompt: string;
 }
 
 export class AuthStore {
@@ -70,7 +72,7 @@ export class AuthStore {
     this.database.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
     this.database.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
     this.database
-      .prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)")
+      .prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at, custom_prompt) VALUES (?, ?, ?, ?, '')")
       .run(hashToken(token), userId, now + lifetimeMs, now);
     return {
       token,
@@ -83,7 +85,7 @@ export class AuthStore {
     const now = Date.now();
     const row = this.database
       .prepare(`
-        SELECT users.* FROM sessions
+        SELECT users.*, sessions.custom_prompt AS session_custom_prompt FROM sessions
         JOIN users ON users.id = sessions.user_id
         WHERE sessions.token_hash = ? AND sessions.expires_at > ?
       `)
@@ -110,6 +112,18 @@ export class AuthStore {
     };
   }
 
+  getDefaultPrompt() {
+    const row = this.database
+      .prepare("SELECT default_prompt FROM app_settings WHERE id = 1")
+      .get() as Pick<SettingsRow, "default_prompt">;
+    return row.default_prompt;
+  }
+
+  updateDefaultPrompt(prompt: string) {
+    this.database.prepare("UPDATE app_settings SET default_prompt = ? WHERE id = 1").run(prompt);
+    return this.getDefaultPrompt();
+  }
+
   updateSettings(settings: AuthSettings) {
     this.database
       .prepare(`
@@ -121,13 +135,11 @@ export class AuthStore {
     return this.getSettings();
   }
 
-  updateUserPrompt(id: string, customPrompt: string) {
-    const changed = this.database
-      .prepare("UPDATE users SET custom_prompt = ? WHERE id = ?")
-      .run(customPrompt, id).changes;
-    if (changed !== 1) return null;
-    const row = this.database.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow;
-    return toAuthUser(row);
+  updateSessionPrompt(token: string | undefined, customPrompt: string) {
+    if (!token) return false;
+    return this.database
+      .prepare("UPDATE sessions SET custom_prompt = ? WHERE token_hash = ? AND expires_at > ?")
+      .run(customPrompt, hashToken(token), Date.now()).changes === 1;
   }
 
   async createUser(username: string, password: string) {
@@ -174,13 +186,15 @@ export class AuthStore {
         token_hash TEXT PRIMARY KEY,
         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         expires_at INTEGER NOT NULL,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        custom_prompt TEXT NOT NULL DEFAULT ''
       );
       CREATE INDEX IF NOT EXISTS sessions_expires_at ON sessions(expires_at);
       CREATE TABLE IF NOT EXISTS app_settings (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         session_lifetime_hours INTEGER NOT NULL CHECK (session_lifetime_hours BETWEEN 1 AND 720),
-        single_session_only INTEGER NOT NULL CHECK (single_session_only IN (0, 1))
+        single_session_only INTEGER NOT NULL CHECK (single_session_only IN (0, 1)),
+        default_prompt TEXT NOT NULL DEFAULT ''
       );
       INSERT OR IGNORE INTO app_settings (id, session_lifetime_hours, single_session_only)
       VALUES (1, ${defaultSessionLifetimeHours}, 0);
@@ -189,13 +203,32 @@ export class AuthStore {
     if (!columns.some((column) => column.name === "custom_prompt")) {
       this.database.exec("ALTER TABLE users ADD COLUMN custom_prompt TEXT NOT NULL DEFAULT ''");
     }
+    const sessionColumns = this.database.prepare("PRAGMA table_info(sessions)").all() as Array<{ name: string }>;
+    if (!sessionColumns.some((column) => column.name === "custom_prompt")) {
+      this.database.exec("ALTER TABLE sessions ADD COLUMN custom_prompt TEXT NOT NULL DEFAULT ''");
+    }
+    const settingColumns = this.database.prepare("PRAGMA table_info(app_settings)").all() as Array<{ name: string }>;
+    if (!settingColumns.some((column) => column.name === "default_prompt")) {
+      this.database.exec("ALTER TABLE app_settings ADD COLUMN default_prompt TEXT NOT NULL DEFAULT ''");
+    }
   }
 
   private async seedAdmin() {
     const existing = this.database
       .prepare("SELECT id FROM users WHERE username = ? COLLATE NOCASE")
       .get(seedUsername);
-    if (existing) return;
+    if (existing) {
+      this.database.prepare(`
+        UPDATE app_settings
+        SET default_prompt = (
+          SELECT custom_prompt FROM users WHERE username = ? COLLATE NOCASE
+        )
+        WHERE id = 1 AND default_prompt = '' AND EXISTS (
+          SELECT 1 FROM users WHERE username = ? COLLATE NOCASE AND custom_prompt <> ''
+        )
+      `).run(seedUsername, seedUsername);
+      return;
+    }
     this.database
       .prepare(`
         INSERT INTO users (id, username, password_hash, role, is_seed, created_at)
@@ -230,6 +263,6 @@ function toAuthUser(row: UserRow): AuthUser {
     role: row.role,
     isSeed: row.is_seed === 1,
     createdAt: row.created_at,
-    customPrompt: row.custom_prompt,
+    customPrompt: row.session_custom_prompt ?? "",
   };
 }

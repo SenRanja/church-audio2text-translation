@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -6,7 +6,7 @@ import cookiePlugin from "@fastify/cookie";
 import rateLimitPlugin from "@fastify/rate-limit";
 import staticPlugin from "@fastify/static";
 import websocketPlugin from "@fastify/websocket";
-import { clientMessageSchema, type ServerMessage } from "@church/contracts";
+import { clientMessageSchema, type ServerMessage, viewerLanguagesSchema } from "@church/contracts";
 import Fastify, { LogController } from "fastify";
 import type WebSocket from "ws";
 import { z } from "zod";
@@ -16,7 +16,11 @@ import type { AppConfig } from "./config";
 import { defaultTranslationInstructions } from "./openai/translator";
 import { PublicStreamHub } from "./public-stream/public-stream-hub";
 import { LiveSession } from "./sessions/live-session";
-import { SourceTranscriptWriter } from "./transcripts/source-transcript-writer";
+import {
+  listOwnedTranscripts,
+  resolveOwnedTranscript,
+  SourceTranscriptWriter,
+} from "./transcripts/source-transcript-writer";
 
 export async function buildServer(config: AppConfig) {
   const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -60,6 +64,10 @@ export async function buildServer(config: AppConfig) {
     sessionLifetimeHours: z.number().int().min(1).max(720),
   });
   const promptSchema = z.object({ prompt: z.string().max(12_000) });
+  const transcriptParamsSchema = z.object({ id: z.string().max(80) });
+  const publicLanguageQuerySchema = z.object({
+    languages: z.string().transform((value) => value.split(",")).pipe(viewerLanguagesSchema),
+  });
 
   app.post(
     "/api/auth/login",
@@ -102,9 +110,11 @@ export async function buildServer(config: AppConfig) {
   app.get("/api/auth/prompt", async (request, reply) => {
     const user = authStore.getSessionUser(request.cookies?.church_session);
     if (!user) return reply.code(401).send({ error: "ERROR" });
+    const churchDefault = authStore.getDefaultPrompt() || defaultTranslationInstructions;
     return {
-      prompt: user.customPrompt || defaultTranslationInstructions,
+      prompt: user.isSeed ? churchDefault : user.customPrompt || churchDefault,
       usingDefault: !user.customPrompt,
+      editsChurchDefault: user.isSeed,
     };
   });
 
@@ -114,12 +124,37 @@ export async function buildServer(config: AppConfig) {
     if (!user || !input.success || !isAllowedOrigin(request.headers.origin, request.headers.host, config.allowedOrigins)) {
       return reply.code(400).send({ error: "ERROR" });
     }
-    const updated = authStore.updateUserPrompt(user.id, input.data.prompt.trim());
-    if (!updated) return reply.code(404).send({ error: "ERROR" });
+    const prompt = input.data.prompt.trim();
+    if (user.isSeed) {
+      const churchDefault = authStore.updateDefaultPrompt(prompt) || defaultTranslationInstructions;
+      return { prompt: churchDefault, usingDefault: true, editsChurchDefault: true };
+    }
+    if (!authStore.updateSessionPrompt(request.cookies?.church_session, prompt)) {
+      return reply.code(404).send({ error: "ERROR" });
+    }
+    const churchDefault = authStore.getDefaultPrompt() || defaultTranslationInstructions;
     return {
-      prompt: updated.customPrompt || defaultTranslationInstructions,
-      usingDefault: !updated.customPrompt,
+      prompt: prompt || churchDefault,
+      usingDefault: !prompt,
+      editsChurchDefault: false,
     };
+  });
+
+  app.get("/api/auth/transcripts", async (request, reply) => {
+    const user = authStore.getSessionUser(request.cookies?.church_session);
+    if (!user) return reply.code(401).send({ error: "ERROR" });
+    return { transcripts: await listOwnedTranscripts(logDirectory, user) };
+  });
+
+  app.get("/api/auth/transcripts/:id", async (request, reply) => {
+    const user = authStore.getSessionUser(request.cookies?.church_session);
+    const params = transcriptParamsSchema.safeParse(request.params);
+    if (!user || !params.success) return reply.code(404).send({ error: "ERROR" });
+    const transcript = await resolveOwnedTranscript(logDirectory, user, params.data.id);
+    if (!transcript) return reply.code(404).send({ error: "ERROR" });
+    reply.header("content-disposition", `attachment; filename="${transcript.filename}"`);
+    reply.type("text/plain; charset=utf-8");
+    return reply.send(createReadStream(transcript.filePath));
   });
 
   app.get("/api/admin/users", async (request, reply) => {
@@ -169,7 +204,8 @@ export async function buildServer(config: AppConfig) {
 
   app.get("/api/public/live/:username", async (request, reply) => {
     const params = loginSchema.pick({ username: true }).safeParse(request.params);
-    if (!params.success) return reply.code(400).send({ error: "Invalid username" });
+    const query = publicLanguageQuerySchema.safeParse(request.query);
+    if (!params.success || !query.success) return reply.code(400).send({ error: "Invalid stream selection" });
 
     reply.hijack();
     reply.raw.writeHead(200, {
@@ -178,7 +214,7 @@ export async function buildServer(config: AppConfig) {
       connection: "keep-alive",
       "x-accel-buffering": "no",
     });
-    const unsubscribe = publicStreams.subscribe(params.data.username, (snapshot) => {
+    const unsubscribe = publicStreams.subscribe(params.data.username, query.data.languages, (snapshot) => {
       reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`);
     });
     const keepAlive = setInterval(() => reply.raw.write(": keep-alive\n\n"), 15_000);
@@ -223,15 +259,16 @@ export async function buildServer(config: AppConfig) {
     };
     const sourceTranscript = new SourceTranscriptWriter(logDirectory, (error) => {
       app.log.error({ event: "source.transcript.error", error }, "source.transcript.error");
-    }, user.username);
+    }, user.username, user.id);
     session = new LiveSession(socket, config, removeSession, (event, details = {}) => {
       const log = event.endsWith(".error") ? app.log.error.bind(app.log) : app.log.debug.bind(app.log);
       log({ event, sessionId: session.id, ...details }, event);
-    }, sourceTranscript, user.customPrompt, {
+    }, sourceTranscript, user.customPrompt || authStore.getDefaultPrompt() || defaultTranslationInstructions, {
       start: (sessionId, sourceLanguage, targetLanguages) =>
         publicStreams.start(user.username, sessionId, sourceLanguage, targetLanguages),
       publish: (sessionId, message) => publicStreams.publish(user.username, sessionId, message),
       end: (sessionId) => publicStreams.end(user.username, sessionId),
+      requestedLanguages: () => publicStreams.getRequestedLanguages(user.username),
     });
     sessions.add(session);
     sessionOwners.set(session, user.id);

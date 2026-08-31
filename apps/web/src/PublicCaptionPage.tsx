@@ -1,9 +1,9 @@
 import { Church, Radio, Waves } from 'lucide-react'
-import type { PublicLiveEvent, PublicLiveSnapshot, TargetLanguage } from '@church/contracts'
+import type { PublicLiveEvent, PublicLiveSnapshot, TargetLanguage, ViewerLanguages } from '@church/contracts'
 import { useEffect, useRef, useState } from 'react'
 
 import './PublicCaptionPage.css'
-import { getSourceLanguageOption, getTargetLanguageOption } from './languages'
+import { getSourceLanguageOption, getTargetLanguageOption, targetLanguageOptions } from './languages'
 
 const offlineSnapshot = (username: string): PublicLiveSnapshot => ({
   username,
@@ -19,11 +19,14 @@ const offlineSnapshot = (username: string): PublicLiveSnapshot => ({
 export function PublicCaptionPage({ username }: { username: string }) {
   const [snapshot, setSnapshot] = useState(() => offlineSnapshot(username))
   const [connected, setConnected] = useState(false)
+  const [selectedLanguages, setSelectedLanguages] = useState<ViewerLanguages>(() => loadViewerLanguages(username))
   const endRefs = useRef<Partial<Record<TargetLanguage, HTMLDivElement | null>>>({})
 
   useEffect(() => {
     document.title = `${username} · Live Translation`
-    const events = new EventSource(`/api/public/live/${encodeURIComponent(username)}`)
+    setConnected(false)
+    const query = new URLSearchParams({ languages: selectedLanguages.join(',') })
+    const events = new EventSource(`/api/public/live/${encodeURIComponent(username)}?${query}`)
     events.onopen = () => setConnected(true)
     events.onmessage = (event) => {
       try {
@@ -35,13 +38,17 @@ export function PublicCaptionPage({ username }: { username: string }) {
     }
     events.onerror = () => setConnected(false)
     return () => events.close()
-  }, [username])
+  }, [username, selectedLanguages])
+
+  useEffect(() => {
+    localStorage.setItem(`public-caption-languages:${username.toLocaleLowerCase()}`, JSON.stringify(selectedLanguages))
+  }, [selectedLanguages, username])
 
   useEffect(() => {
     let cancelled = false
     const scrollToLatest = () => {
       if (cancelled) return
-      snapshot.targetLanguages.forEach((language) => {
+      selectedLanguages.forEach((language) => {
         const scrollContainer = endRefs.current[language]?.parentElement
         if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight
       })
@@ -53,7 +60,11 @@ export function PublicCaptionPage({ username }: { username: string }) {
       cancelled = true
       cancelAnimationFrame(frame)
     }
-  }, [snapshot])
+  }, [selectedLanguages, snapshot])
+
+  const selectLanguage = (pane: 0 | 1, language: TargetLanguage) => {
+    setSelectedLanguages((current) => pane === 0 ? [language, current[1]] : [current[0], language])
+  }
 
   const live = snapshot.sessionId !== null
   const source = snapshot.interim || snapshot.segments.at(-1)?.source || 'Awaiting speech'
@@ -71,58 +82,85 @@ export function PublicCaptionPage({ username }: { username: string }) {
       </header>
 
       <main className="public-caption-main">
-        {!live ? (
-          <section className="public-offline">
-            <Radio size={38} strokeWidth={1.4} />
-            <h1>No live translation</h1>
-            <p>This page will update automatically when {username} starts translating.</p>
-          </section>
-        ) : (
-          <>
-            <section
-              className="public-translation-grid"
-              style={{ gridTemplateColumns: `repeat(${snapshot.targetLanguages.length}, minmax(0, 1fr))` }}
-            >
-              {snapshot.targetLanguages.map((language) => {
-                const details = getTargetLanguageOption(language)
-                return (
-                  <article className="public-translation-pane" key={language} lang={details.htmlLanguage}>
-                    <header>
-                      <div><strong>{details.label}</strong><small>{details.subtitle}</small></div>
-                      <span>{snapshot.segments.length.toString().padStart(2, '0')}</span>
-                    </header>
-                    <div className="public-segment-list">
-                      {snapshot.segments.length === 0 ? (
-                        <div className="public-awaiting"><Waves size={30} strokeWidth={1.4} /> Awaiting speech</div>
-                      ) : snapshot.segments.map((segment) => (
-                        <div className="public-segment" key={segment.segmentId}>
-                          <time>{formatTime(segment.startMs)}</time>
-                          {segment.translations[language] ? (
-                            <p>{segment.translations[language]}</p>
-                          ) : (
-                            <div className="public-translating" aria-label="Translating"><i /><i /><i /></div>
-                          )}
-                        </div>
+        <section
+          className="public-translation-grid"
+          style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}
+        >
+          {selectedLanguages.map((language, pane) => {
+            const details = getTargetLanguageOption(language)
+            return (
+              <article className="public-translation-pane" key={language} lang={details.htmlLanguage}>
+                <header>
+                  <div>
+                    <select
+                      aria-label={`Caption language ${pane + 1}`}
+                      value={language}
+                      onChange={(event) => selectLanguage(pane as 0 | 1, event.target.value as TargetLanguage)}
+                    >
+                      {targetLanguageOptions.map((option) => (
+                        <option
+                          key={option.value}
+                          value={option.value}
+                          disabled={selectedLanguages[1 - pane] === option.value}
+                        >
+                          {option.label}
+                        </option>
                       ))}
-                      <div ref={(element) => { endRefs.current[language] = element }} />
+                    </select>
+                    <small>{details.subtitle}</small>
+                  </div>
+                  <span>{snapshot.segments.length.toString().padStart(2, '0')}</span>
+                </header>
+                <div className="public-segment-list">
+                  {!live ? (
+                    <div className="public-awaiting"><Radio size={30} strokeWidth={1.4} /> Waiting for stream</div>
+                  ) : snapshot.segments.length === 0 ? (
+                    <div className="public-awaiting"><Waves size={30} strokeWidth={1.4} /> Awaiting speech</div>
+                  ) : snapshot.segments.map((segment) => (
+                    <div className="public-segment" key={segment.segmentId}>
+                      <time>{formatTime(segment.startMs)}</time>
+                      {segment.translations[language] ? (
+                        <p>{segment.translations[language]}</p>
+                      ) : segment.state === 'complete' ? (
+                        <p className="public-not-available">Available from next caption</p>
+                      ) : (
+                        <div className="public-translating" aria-label="Translating"><i /><i /><i /></div>
+                      )}
                     </div>
-                  </article>
-                )
-              })}
-            </section>
+                  ))}
+                  <div ref={(element) => { endRefs.current[language] = element }} />
+                </div>
+              </article>
+            )
+          })}
+        </section>
 
-            <section className={`public-source ${snapshot.interim ? 'is-speaking' : ''}`} aria-live="polite">
+        {live && (
+          <section className={`public-source ${snapshot.interim ? 'is-speaking' : ''}`} aria-live="polite">
               <div>
                 <span>Source</span>
                 <strong>{snapshot.sourceLanguage ? getSourceLanguageOption(snapshot.sourceLanguage).label : ''}</strong>
               </div>
               <p>{source}</p>
-            </section>
-          </>
+          </section>
         )}
       </main>
     </div>
   )
+}
+
+function loadViewerLanguages(username: string): ViewerLanguages {
+  try {
+    const stored = JSON.parse(localStorage.getItem(`public-caption-languages:${username.toLocaleLowerCase()}`) ?? '') as unknown
+    if (
+      Array.isArray(stored) && stored.length === 2 && stored[0] !== stored[1] &&
+      stored.every((language) => targetLanguageOptions.some((option) => option.value === language))
+    ) {
+      return stored as ViewerLanguages
+    }
+  } catch {
+  }
+  return ['en', 'zh-Hans']
 }
 
 export function applyPublicEvent(
