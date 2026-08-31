@@ -6,6 +6,8 @@ import {
   Expand,
   Mic,
   MonitorSpeaker,
+  PanelTopClose,
+  PanelTopOpen,
   Pause,
   PictureInPicture2,
   Play,
@@ -50,6 +52,7 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
   const session = useLiveTranslation()
   const [activeLanguage, setActiveLanguage] = useState<TargetLanguage>('zh-Hans')
   const [autoScroll, setAutoScroll] = useState(true)
+  const [focusView, setFocusView] = useState(false)
   const [captionNotice, setCaptionNotice] = useState('')
   const [linkCopied, setLinkCopied] = useState(false)
   const [fontSizes, setFontSizes] = useState<Record<TextArea, number>>({
@@ -102,15 +105,25 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
 
   useEffect(() => {
     if (!autoScroll) return
+    let cancelled = false
     const visibleLanguages = window.matchMedia('(max-width: 760px)').matches
       ? [activeLanguage]
       : session.targetLanguages
 
-    visibleLanguages.forEach((language) => {
-      const target = paneEndRefs.current[language]
-      const scrollContainer = target?.parentElement
-      scrollContainer?.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' })
-    })
+    const scrollToLatest = () => {
+      if (cancelled) return
+      visibleLanguages.forEach((language) => {
+        const scrollContainer = paneEndRefs.current[language]?.parentElement
+        if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight
+      })
+    }
+    scrollToLatest()
+    const frame = requestAnimationFrame(scrollToLatest)
+    void document.fonts.ready.then(scrollToLatest)
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(frame)
+    }
   }, [session.segments, session.interim, session.targetLanguages, activeLanguage, autoScroll])
 
   const isActive = !['idle', 'error'].includes(session.phase)
@@ -176,7 +189,7 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${focusView ? 'focus-view' : ''}`}>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark"><Church size={22} strokeWidth={1.8} /></span>
@@ -207,10 +220,7 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
       <main>
         <section className="control-deck" aria-label="Live translation controls">
           <div className="deck-heading">
-            <div>
-              <span className="eyebrow">Sunday service</span>
-              <h1>Speak clearly. Share faithfully.</h1>
-            </div>
+            <strong>Input level</strong>
             <div className="signal" aria-label={`Microphone level ${Math.round(session.volume * 100)} percent`}>
               <Waves size={18} />
               <div className="meter" aria-hidden="true">
@@ -351,6 +361,46 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
               ))}
             </div>
             <div className="utility-actions">
+              {focusView && (
+                <div className={`focus-compact-status status-${session.phase}`} role="status">
+                  <span className="status-dot" />{phaseLabels[session.phase]}
+                </div>
+              )}
+              {focusView && isActive && (
+                <div className="focus-session-actions">
+                  <button
+                    className="icon-button action-button"
+                    type="button"
+                    onClick={session.phase === 'paused' ? session.resume : session.pause}
+                    disabled={session.phase === 'connecting' || session.phase === 'stopping'}
+                    aria-label={session.phase === 'paused' ? 'Resume' : 'Pause'}
+                    title={session.phase === 'paused' ? 'Resume' : 'Pause'}
+                  >
+                    {session.phase === 'paused' ? <Play size={18} /> : <Pause size={18} />}
+                  </button>
+                  <button
+                    className="icon-button action-button stop-button"
+                    type="button"
+                    onClick={session.stop}
+                    disabled={session.phase === 'stopping'}
+                    aria-label="Stop session"
+                    title="Stop"
+                  >
+                    <Square size={16} fill="currentColor" />
+                  </button>
+                </div>
+              )}
+              <button
+                className={`icon-button toolbar-control focus-view-button ${focusView ? 'utility-active' : ''}`}
+                type="button"
+                onClick={() => setFocusView((current) => !current)}
+                aria-pressed={focusView}
+                aria-label={focusView ? 'Show header and audio controls' : 'Hide header and audio controls'}
+                title={focusView ? 'Show header and audio controls' : 'Focus view'}
+              >
+                {focusView ? <PanelTopOpen size={18} /> : <PanelTopClose size={18} />}
+                <span>{focusView ? 'Show controls' : 'Focus view'}</span>
+              </button>
               <button
                 className="icon-button toolbar-control add-pane-button"
                 type="button"

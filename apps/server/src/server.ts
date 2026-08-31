@@ -160,7 +160,13 @@ export async function buildServer(config: AppConfig) {
   app.get("/api/admin/users", async (request, reply) => {
     const user = requireAdmin(request.cookies?.church_session, authStore);
     if (!user) return reply.code(403).send({ error: "ERROR" });
-    return { users: authStore.listUsers().map(publicUser) };
+    const activeUserIds = new Set(sessionOwners.values());
+    return {
+      users: authStore.listUsers().map((account) => ({
+        ...publicUser(account),
+        isLive: activeUserIds.has(account.id),
+      })),
+    };
   });
 
   app.get("/api/admin/settings", async (request, reply) => {

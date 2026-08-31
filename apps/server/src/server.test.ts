@@ -176,6 +176,14 @@ describe("authentication", () => {
         socket: { remoteAddress: "203.0.113.30" },
       } as unknown as Partial<IncomingMessage>);
       sockets.push(firstSocket);
+      const activeUsers = await app.inject({
+        method: "GET",
+        url: "/api/admin/users",
+        headers: { cookie: adminCookie },
+      });
+      expect(activeUsers.json().users).toContainEqual(
+        expect.objectContaining({ username: "prompt-user", isLive: true }),
+      );
       const secondLogin = await app.inject({
         method: "POST",
         url: "/api/auth/login",
@@ -186,6 +194,14 @@ describe("authentication", () => {
       expect(secondLogin.headers["set-cookie"]).toContain("Max-Age=86400");
       await vi.waitFor(() => expect(firstSocket.readyState).toBe(firstSocket.CLOSED));
       expect(sessions.revoked).toBe(1);
+      const inactiveUsers = await app.inject({
+        method: "GET",
+        url: "/api/admin/users",
+        headers: { cookie: adminCookie },
+      });
+      expect(inactiveUsers.json().users).toContainEqual(
+        expect.objectContaining({ username: "prompt-user", isLive: false }),
+      );
 
       const expiredTerminal = await app.inject({
         method: "GET",

@@ -1,4 +1,4 @@
-.public-caption-page { min-height: 100svh; display: flex; flex-direction: column; background: var(--canvas); }
+.public-caption-page { height: 100svh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--canvas); }
 .public-header {
   min-height: 68px;
   padding: 10px clamp(18px, 4vw, 56px);
@@ -23,12 +23,16 @@
   padding: clamp(14px, 2.5vw, 30px) clamp(14px, 3vw, 42px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   background:
     linear-gradient(135deg, rgba(25, 83, 95, .045) 25%, transparent 25%) 0 0 / 44px 44px,
     linear-gradient(315deg, rgba(180, 62, 54, .035) 25%, transparent 25%) 0 0 / 44px 44px,
     var(--canvas);
 }
+.public-auto-scroll { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-soft); font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.public-auto-scroll input { position: absolute; opacity: 0; pointer-events: none; }
+.public-auto-scroll > span { width: 34px; height: 20px; padding: 3px; display: flex; align-items: center; justify-content: flex-start; border-radius: 10px; color: transparent; background: #c9cecb; }
+.public-auto-scroll input:checked + span { justify-content: flex-end; color: white; background: var(--green); }
 .public-offline { flex: 1; min-height: 420px; display: grid; place-content: center; justify-items: center; text-align: center; color: var(--muted); }
 .public-offline h1 { margin: 18px 0 5px; font-size: 34px; }
 .public-offline p { max-width: 520px; margin: 0; font-size: 14px; }
@@ -36,25 +40,30 @@
 .public-translation-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); }
 .public-translation-pane > header { min-height: 72px; padding: 12px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); background: var(--surface-soft); }
 .public-translation-pane > header div { min-width: 0; display: grid; }
-.public-translation-pane > header select { max-width: 100%; padding: 0 25px 0 0; color: var(--ink); border: 0; background: transparent; font-family: var(--display); font-size: 21px; font-weight: 600; cursor: pointer; }
+.public-translation-pane > header select { width: min(230px, 100%); height: 40px; padding: 0 34px 0 10px; color: var(--ink); border: 1px solid var(--line-dark); border-radius: 4px; background-color: var(--surface); background-position: calc(100% - 13px) 17px; font-family: var(--display); font-size: 19px; font-weight: 600; cursor: pointer; }
 .public-translation-pane > header select:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; }
 .public-translation-pane > header small { margin-top: 2px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
-.public-translation-pane > header > span { color: var(--navy); font-family: var(--mono); font-size: 18px; }
-.public-segment-list { height: calc(100svh - 254px); min-height: 360px; padding: 5px 22px 18px; overflow-y: auto; }
+.public-pane-tools { display: flex !important; grid-auto-flow: column; align-items: center; gap: 8px; }
+.public-pane-tools > span { color: var(--navy); font-family: var(--mono); font-size: 18px; }
+.public-font-controls { display: inline-flex; gap: 3px; }
+.public-font-controls button { width: 34px; height: 30px; padding: 0; color: var(--ink-soft); border: 1px solid var(--line-dark); border-radius: 4px; background: var(--surface); font: 700 12px/1 var(--sans); cursor: pointer; }
+.public-font-controls button:hover:not(:disabled) { color: var(--navy); background: var(--surface-strong); }
+.public-font-controls button:disabled { opacity: .4; cursor: not-allowed; }
+.public-segment-list { flex: 1; min-height: 0; height: auto; padding: 5px 22px 18px; overflow-y: auto; }
 .public-segment { padding: 11px 0; display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 8px; border-bottom: 1px solid var(--line); animation: public-reveal .3s ease-out both; }
 .public-segment time { margin-top: 5px; color: var(--muted-light); font-family: var(--mono); font-size: 10px; }
-.public-segment p { margin: 0; color: var(--ink); font-size: clamp(18px, 1.45vw, 25px); line-height: 1.35; overflow-wrap: anywhere; }
+.public-segment p { margin: 0; color: var(--ink); line-height: 1.35; overflow-wrap: anywhere; }
 .public-awaiting { min-height: 300px; display: grid; place-content: center; justify-items: center; gap: 12px; color: var(--muted-light); font-family: var(--display); font-size: 17px; }
 .public-translating { min-height: 34px; display: flex; align-items: center; gap: 5px; }
 .public-translating i { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: public-typing 1s ease-in-out infinite; }
 .public-translating i:nth-child(2) { animation-delay: .15s; }
 .public-translating i:nth-child(3) { animation-delay: .3s; }
 .public-segment p.public-not-available { color: var(--muted-light); font-size: 13px; font-style: italic; }
-.public-source { min-height: 88px; padding: 13px 20px; display: grid; grid-template-columns: minmax(150px, 210px) 1fr; align-items: center; gap: 18px; border-top: 3px solid var(--navy); background: var(--surface); box-shadow: var(--shadow); }
+.public-source { min-height: 0; flex: 0 0 88px; padding: 13px 20px; display: grid; grid-template-columns: minmax(150px, 210px) minmax(0, 1fr); align-items: center; gap: 18px; border-top: 3px solid var(--navy); background: var(--surface); box-shadow: var(--shadow); }
 .public-source > div { display: grid; }
 .public-source span { color: var(--red); font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .public-source strong { margin-top: 3px; color: var(--muted); font-size: 11px; }
-.public-source p { margin: 0; color: var(--ink); font-size: clamp(18px, 1.4vw, 24px); line-height: 1.35; overflow-wrap: anywhere; }
+.public-source p { max-height: 64px; margin: 0; overflow-y: auto; color: var(--ink); font-size: clamp(18px, 1.4vw, 24px); line-height: 1.35; overflow-wrap: anywhere; }
 .public-source.is-speaking { background: #e8f2ee; }
 
 @keyframes public-live-pulse { 70% { box-shadow: 0 0 0 8px rgba(27, 126, 88, 0); } }
@@ -62,15 +71,21 @@
 @keyframes public-typing { 0%, 60%, 100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-4px); opacity: 1; } }
 
 @media (max-width: 760px) {
+  .public-caption-page { height: 100svh; min-height: 0; overflow: hidden; }
   .public-header { min-height: 62px; padding-inline: 14px; }
-  .public-caption-main { padding: 12px; }
-  .public-translation-grid { display: flex; flex-direction: column; gap: 12px; background: transparent; box-shadow: none; }
-  .public-translation-pane { min-height: 42svh; box-shadow: var(--shadow); }
-  .public-translation-pane > header { min-height: 58px; padding: 9px 16px; }
-  .public-segment-list { height: 34svh; min-height: 240px; padding-inline: 16px; }
+  .public-caption-main { min-height: 0; padding: 8px; gap: 8px; }
+  .public-translation-grid { min-height: 0; display: flex; flex-direction: column; gap: 1px; background: var(--line); box-shadow: none; }
+  .public-translation-pane { flex: 1; min-height: 0; box-shadow: none; }
+  .public-translation-pane > header { min-height: 82px; padding: 7px 10px; flex-wrap: wrap; }
+  .public-translation-pane > header > div:first-child { flex: 1; }
+  .public-translation-pane > header select { width: min(210px, 100%); height: 36px; background-position: calc(100% - 12px) 15px; font-size: 17px; }
+  .public-pane-tools { width: auto; gap: 5px; }
+  .public-pane-tools > span { display: none; }
+  .public-auto-scroll { font-size: 9px; }
+  .public-auto-scroll > span { width: 28px; }
+  .public-segment-list { flex: 1; height: auto; min-height: 0; padding-inline: 12px; }
   .public-segment { grid-template-columns: 36px minmax(0, 1fr); gap: 5px; }
-  .public-segment p { font-size: 19px; }
-  .public-source { position: sticky; bottom: 0; grid-template-columns: 1fr; gap: 6px; padding: 11px 16px; z-index: 2; }
+  .public-source { position: static; min-height: 0; flex: 0 0 96px; grid-template-columns: 1fr; gap: 4px; padding: 8px 12px; z-index: 2; }
   .public-source p { font-size: 18px; }
 }
 

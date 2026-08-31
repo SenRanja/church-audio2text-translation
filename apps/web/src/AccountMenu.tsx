@@ -1,5 +1,5 @@
 import { Download, FileText, LogOut, RotateCcw, Save, Trash2, UserPlus, UserRound, X } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 
 import type { CurrentUser } from './AuthApp'
 
@@ -21,9 +21,13 @@ interface TranscriptSummary {
   createdAt: number
 }
 
+interface AdminUser extends CurrentUser {
+  isLive: boolean
+}
+
 export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<void> }) {
   const [open, setOpen] = useState(false)
-  const [users, setUsers] = useState<CurrentUser[]>([])
+  const [users, setUsers] = useState<AdminUser[]>([])
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(false)
@@ -43,9 +47,15 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
       setError(true)
       return
     }
-    const result = (await response.json()) as { users: CurrentUser[] }
+    const result = (await response.json()) as { users: AdminUser[] }
     setUsers(result.users)
   }
+
+  useEffect(() => {
+    if (!open || user.role !== 'admin') return
+    const refreshTimer = window.setInterval(() => void loadUsers(), 3_000)
+    return () => window.clearInterval(refreshTimer)
+  }, [open, user.role])
 
   const loadAccountData = async () => {
     setError(false)
@@ -73,7 +83,7 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
       setError(true)
       return
     }
-    setUsers(((await usersResponse.json()) as { users: CurrentUser[] }).users)
+    setUsers(((await usersResponse.json()) as { users: AdminUser[] }).users)
     setSettings(((await settingsResponse.json()) as { settings: AuthSettings }).settings)
   }
 
@@ -191,6 +201,12 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
                 </label>
                 <p className="account-policy-note">Each user can sign in on one terminal at a time.</p>
               </form>
+              <div className="account-section-heading account-users-heading">
+                <span>
+                  <strong>Accounts</strong>
+                  <small>{users.filter((account) => account.isLive).length} live now</small>
+                </span>
+              </div>
               <form className="account-create" onSubmit={(event) => void addUser(event)}>
                 <input
                   aria-label="New username"
@@ -219,8 +235,11 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
               </form>
               <div className="account-list">
                 {users.map((account) => (
-                  <div key={account.id}>
-                    <span><strong>{account.username}</strong><small>{account.role}</small></span>
+                  <div className={account.isLive ? 'is-live' : ''} key={account.id}>
+                    <span>
+                      <strong>{account.username}</strong>
+                      <small className="account-presence"><i />{account.isLive ? 'Live now' : account.role}</small>
+                    </span>
                     <button
                       type="button"
                       aria-label={`Delete ${account.username}`}

@@ -1,9 +1,12 @@
-import { Church, Radio, Waves } from 'lucide-react'
+import { Check, Church, Radio, Waves } from 'lucide-react'
 import type { PublicLiveEvent, PublicLiveSnapshot, TargetLanguage, ViewerLanguages } from '@church/contracts'
 import { useEffect, useRef, useState } from 'react'
 
 import './PublicCaptionPage.css'
 import { getSourceLanguageOption, getTargetLanguageOption, targetLanguageOptions } from './languages'
+
+const minimumFontSize = 14
+const maximumFontSize = 36
 
 const offlineSnapshot = (username: string): PublicLiveSnapshot => ({
   username,
@@ -20,6 +23,8 @@ export function PublicCaptionPage({ username }: { username: string }) {
   const [snapshot, setSnapshot] = useState(() => offlineSnapshot(username))
   const [connected, setConnected] = useState(false)
   const [selectedLanguages, setSelectedLanguages] = useState<ViewerLanguages>(() => loadViewerLanguages(username))
+  const [fontSizes, setFontSizes] = useState<Record<TargetLanguage, number>>(() => loadViewerFontSizes(username))
+  const [autoScroll, setAutoScroll] = useState<[boolean, boolean]>([true, true])
   const endRefs = useRef<Partial<Record<TargetLanguage, HTMLDivElement | null>>>({})
 
   useEffect(() => {
@@ -48,7 +53,8 @@ export function PublicCaptionPage({ username }: { username: string }) {
     let cancelled = false
     const scrollToLatest = () => {
       if (cancelled) return
-      selectedLanguages.forEach((language) => {
+      selectedLanguages.forEach((language, pane) => {
+        if (!autoScroll[pane]) return
         const scrollContainer = endRefs.current[language]?.parentElement
         if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight
       })
@@ -60,10 +66,25 @@ export function PublicCaptionPage({ username }: { username: string }) {
       cancelled = true
       cancelAnimationFrame(frame)
     }
-  }, [selectedLanguages, snapshot])
+  }, [autoScroll, selectedLanguages, snapshot])
 
   const selectLanguage = (pane: 0 | 1, language: TargetLanguage) => {
     setSelectedLanguages((current) => pane === 0 ? [language, current[1]] : [current[0], language])
+  }
+
+  const adjustFontSize = (language: TargetLanguage, change: number) => {
+    setFontSizes((current) => {
+      const next = {
+        ...current,
+        [language]: Math.min(maximumFontSize, Math.max(minimumFontSize, current[language] + change)),
+      }
+      localStorage.setItem(`public-caption-font-sizes:${username.toLocaleLowerCase()}`, JSON.stringify(next))
+      return next
+    })
+  }
+
+  const toggleAutoScroll = (pane: number, enabled: boolean) => {
+    setAutoScroll((current) => pane === 0 ? [enabled, current[1]] : [current[0], enabled])
   }
 
   const live = snapshot.sessionId !== null
@@ -109,7 +130,32 @@ export function PublicCaptionPage({ username }: { username: string }) {
                     </select>
                     <small>{details.subtitle}</small>
                   </div>
-                  <span>{snapshot.segments.length.toString().padStart(2, '0')}</span>
+                  <div className="public-pane-tools">
+                    <span>{snapshot.segments.length.toString().padStart(2, '0')}</span>
+                    <div className="public-font-controls" aria-label={`${details.label} font size`}>
+                      <button
+                        type="button"
+                        disabled={fontSizes[language] <= minimumFontSize}
+                        onClick={() => adjustFontSize(language, -2)}
+                        aria-label={`Decrease ${details.label} font size`}
+                      >A-</button>
+                      <button
+                        type="button"
+                        disabled={fontSizes[language] >= maximumFontSize}
+                        onClick={() => adjustFontSize(language, 2)}
+                        aria-label={`Increase ${details.label} font size`}
+                      >A+</button>
+                    </div>
+                    <label className="public-auto-scroll">
+                      <input
+                        type="checkbox"
+                        checked={autoScroll[pane]}
+                        onChange={(event) => toggleAutoScroll(pane, event.target.checked)}
+                      />
+                      <span aria-hidden="true"><Check size={12} /></span>
+                      Auto-scroll
+                    </label>
+                  </div>
                 </header>
                 <div className="public-segment-list">
                   {!live ? (
@@ -120,7 +166,7 @@ export function PublicCaptionPage({ username }: { username: string }) {
                     <div className="public-segment" key={segment.segmentId}>
                       <time>{formatTime(segment.startMs)}</time>
                       {segment.translations[language] ? (
-                        <p>{segment.translations[language]}</p>
+                        <p style={{ fontSize: fontSizes[language] }}>{segment.translations[language]}</p>
                       ) : segment.state === 'complete' ? (
                         <p className="public-not-available">Available from next caption</p>
                       ) : (
@@ -135,15 +181,15 @@ export function PublicCaptionPage({ username }: { username: string }) {
           })}
         </section>
 
-        {live && (
-          <section className={`public-source ${snapshot.interim ? 'is-speaking' : ''}`} aria-live="polite">
-              <div>
-                <span>Source</span>
-                <strong>{snapshot.sourceLanguage ? getSourceLanguageOption(snapshot.sourceLanguage).label : ''}</strong>
-              </div>
-              <p>{source}</p>
-          </section>
-        )}
+        <section className={`public-source ${snapshot.interim ? 'is-speaking' : ''}`} aria-live="polite">
+          <div>
+            <span>Source</span>
+            <strong>
+              {snapshot.sourceLanguage ? getSourceLanguageOption(snapshot.sourceLanguage).label : 'Original speech'}
+            </strong>
+          </div>
+          <p>{live ? source : connected ? 'Waiting for stream' : 'Connecting'}</p>
+        </section>
       </main>
     </div>
   )
@@ -161,6 +207,19 @@ function loadViewerLanguages(username: string): ViewerLanguages {
   } catch {
   }
   return ['en', 'zh-Hans']
+}
+
+function loadViewerFontSizes(username: string): Record<TargetLanguage, number> {
+  const defaults = Object.fromEntries(targetLanguageOptions.map(({ value }) => [value, 22])) as Record<TargetLanguage, number>
+  try {
+    const stored = JSON.parse(localStorage.getItem(`public-caption-font-sizes:${username.toLocaleLowerCase()}`) ?? '') as Partial<Record<TargetLanguage, number>>
+    targetLanguageOptions.forEach(({ value }) => {
+      const size = stored[value]
+      if (typeof size === 'number' && size >= minimumFontSize && size <= maximumFontSize) defaults[value] = size
+    })
+  } catch {
+  }
+  return defaults
 }
 
 export function applyPublicEvent(

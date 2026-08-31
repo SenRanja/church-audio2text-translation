@@ -96,13 +96,19 @@
 .duration-input { display: flex; align-items: center; gap: 7px; font-weight: 500; }
 .account-settings input[type="number"] { width: 78px; height: 36px; font-size: 12px; }
 .account-policy-note { margin: 10px 0 0; color: var(--muted); font-size: 11px; }
+.account-users-heading { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--line); }
 .account-create { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr 40px; gap: 7px; }
 .account-create input { min-width: 0; height: 40px; font-size: 12px; }
 .account-create button { display: grid; place-items: center; color: white; background: var(--navy); }
 .account-list { max-height: 260px; margin-top: 14px; overflow-y: auto; border-top: 1px solid var(--line); }
 .account-list > div { min-height: 50px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.account-list > div.is-live { background: rgba(27, 126, 88, .06); }
 .account-list span { min-width: 0; display: grid; }
 .account-list strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; }
+.account-presence { display: inline-flex; grid-auto-flow: column; align-items: center; justify-content: start; gap: 5px; }
+.account-presence i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted-light); }
+.account-list .is-live .account-presence { color: var(--green); font-weight: 800; }
+.account-list .is-live .account-presence i { background: var(--green); box-shadow: 0 0 0 3px rgba(27, 126, 88, .12); }
 .account-list button:not(:disabled):hover { color: var(--red); background: rgba(180, 62, 54, .08); }
 .account-prompt textarea { width: 100%; min-height: 150px; padding: 10px; resize: vertical; color: var(--ink); border: 1px solid var(--line-dark); border-radius: 5px; background: white; font: 11px/1.45 monospace; }
 .account-prompt-note { margin: -2px 0 9px; color: var(--muted); font-size: 10px; line-height: 1.4; }
