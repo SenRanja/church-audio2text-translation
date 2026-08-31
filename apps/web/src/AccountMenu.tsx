@@ -5,7 +5,6 @@ import type { CurrentUser } from './AuthApp'
 
 interface AuthSettings {
   sessionLifetimeHours: number
-  singleSessionOnly: boolean
 }
 
 interface PromptResult {
@@ -21,7 +20,6 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
   const [error, setError] = useState(false)
   const [settings, setSettings] = useState<AuthSettings>({
     sessionLifetimeHours: 12,
-    singleSessionOnly: false,
   })
   const [prompt, setPrompt] = useState('')
   const [usingDefaultPrompt, setUsingDefaultPrompt] = useState(true)
@@ -168,17 +166,7 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
                     hours
                   </span>
                 </label>
-                <label className="account-toggle">
-                  <input
-                    type="checkbox"
-                    checked={settings.singleSessionOnly}
-                    onChange={(event) => setSettings((current) => ({
-                      ...current,
-                      singleSessionOnly: event.target.checked,
-                    }))}
-                  />
-                  <span>Allow only one active terminal per user</span>
-                </label>
+                <p className="account-policy-note">Each user can sign in on one terminal at a time.</p>
               </form>
               <form className="account-create" onSubmit={(event) => void addUser(event)}>
                 <input

@@ -12,6 +12,12 @@ import { SegmentBuffer, type BufferedSegment } from "./segment-buffer";
 
 type State = "idle" | "connecting" | "listening" | "paused" | "draining" | "closed";
 
+interface PublicSessionPublisher {
+  start(sessionId: string, sourceLanguage: SourceLanguage, targetLanguages: TargetLanguage[]): void;
+  publish(sessionId: string, message: ServerMessage): void;
+  end(sessionId: string): void;
+}
+
 export class LiveSession {
   readonly id = randomUUID();
   private state: State = "idle";
@@ -37,6 +43,7 @@ export class LiveSession {
     private readonly telemetry: ApiTelemetry,
     private readonly sourceTranscript?: SourceTranscriptWriter,
     private readonly customPrompt = "",
+    private readonly publicPublisher?: PublicSessionPublisher,
   ) {
     this.startTimer = setTimeout(() => {
       if (this.state !== "idle") return;
@@ -71,6 +78,7 @@ export class LiveSession {
     this.state = "closed";
     this.clearTimers();
     this.deepgram?.destroy();
+    this.publicPublisher?.end(this.id);
     this.onClosed();
   }
 
@@ -95,6 +103,7 @@ export class LiveSession {
     }
 
     this.state = "connecting";
+    this.publicPublisher?.start(this.id, language, targetLanguages);
     this.sourceTranscript?.configure({
       inputMode,
       sourceLanguage: language,
@@ -166,6 +175,7 @@ export class LiveSession {
 
     this.send({ type: "session.closed" });
     this.state = "closed";
+    this.publicPublisher?.end(this.id);
     this.socket.close(1000, "Session complete");
     this.onClosed();
   }
@@ -254,6 +264,7 @@ export class LiveSession {
   }
 
   private send(message: ServerMessage) {
+    this.publicPublisher?.publish(this.id, message);
     if (this.socket.readyState === this.socket.OPEN) this.socket.send(JSON.stringify(message));
   }
 }

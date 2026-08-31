@@ -319,6 +319,7 @@ select {
 .floating-button.utility-active,
 .floating-button.utility-active:hover:not(:disabled) { color: white; background: var(--navy); }
 .add-pane-button { width: 44px; padding: 0; color: var(--navy); }
+.broadcast-link-button { width: auto; min-width: 102px; gap: 7px; color: var(--navy); font: inherit; font-size: 12px; font-weight: 750; }
 .toggle {
   display: inline-flex;
   gap: 8px;
@@ -569,7 +570,9 @@ select {
   .language-tabs button { flex: 1; padding: 0 6px; font-size: 11px; }
   .utility-actions { width: 100%; min-height: 58px; justify-content: center; order: 1; border-bottom: 1px solid var(--line); }
   .toolbar-control { min-height: 42px; padding-inline: 10px; }
-  .floating-button { min-width: 104px; }
+  .broadcast-link-button { width: 42px; min-width: 42px; padding: 0; }
+  .broadcast-link-button span, .floating-button span { display: none; }
+  .floating-button { width: 44px; min-width: 44px; padding: 0; }
   .translation-grid { display: block; }
   .translation-pane { display: none; }
   .translation-pane.pane-active { display: flex; }

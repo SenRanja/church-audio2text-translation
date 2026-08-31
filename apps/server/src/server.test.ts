@@ -133,10 +133,10 @@ describe("authentication", () => {
         method: "PUT",
         url: "/api/admin/settings",
         headers: { ...origin, cookie: adminCookie },
-        payload: { sessionLifetimeHours: 24, singleSessionOnly: true },
+        payload: { sessionLifetimeHours: 24 },
       });
       expect(settings.json()).toEqual({
-        settings: { sessionLifetimeHours: 24, singleSessionOnly: true },
+        settings: { sessionLifetimeHours: 24 },
       });
 
       await app.inject({

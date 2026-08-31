@@ -42,9 +42,8 @@ describe("AuthStore persistence", () => {
 
     expect(store.getSettings()).toEqual({
       sessionLifetimeHours: 12,
-      singleSessionOnly: false,
     });
-    store.updateSettings({ sessionLifetimeHours: 24, singleSessionOnly: true });
+    store.updateSettings({ sessionLifetimeHours: 24 });
 
     const first = store.createSession(admin!.id);
     const second = store.createSession(admin!.id);

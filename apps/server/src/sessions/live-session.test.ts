@@ -223,4 +223,55 @@ describe("LiveSession inactivity timeout", () => {
     expect(sourceTranscript.append).toHaveBeenCalledWith("Grace and peace.");
     session.disconnect();
   });
+
+  it("reuses outbound session events for the public stream", async () => {
+    vi.useFakeTimers();
+    translator.translate.mockResolvedValue({ "zh-Hans": "恩典与平安。" });
+    const publicPublisher = { start: vi.fn(), publish: vi.fn(), end: vi.fn() };
+    const socket = {
+      OPEN: 1,
+      readyState: 1,
+      send: vi.fn(),
+      close: vi.fn(),
+    } as unknown as WebSocket;
+    const session = new LiveSession(
+      socket,
+      loadConfig({
+        DEEPGRAM_API_KEY: "test-deepgram-key",
+        OPENAI_API_KEY: "test-openai-key",
+      }),
+      vi.fn(),
+      vi.fn(),
+      undefined,
+      "",
+      publicPublisher,
+    );
+
+    await session.handleControl({
+      type: "session.start",
+      sourceLanguage: "en-AU",
+      inputMode: "system",
+      targetLanguages: ["zh-Hans"],
+      mimeType: "audio/webm;codecs=opus",
+      inactivityTimeoutMinutes: 15,
+    });
+    expect(publicPublisher.start).toHaveBeenCalledWith(session.id, "en-AU", ["zh-Hans"]);
+
+    deepgram.onResult?.({
+      transcript: "Grace and peace.",
+      isFinal: true,
+      speechFinal: true,
+      fromFinalize: false,
+      startMs: 0,
+      endMs: 1_000,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(publicPublisher.publish).toHaveBeenCalledWith(
+      session.id,
+      expect.objectContaining({ type: "translation.final", translations: { "zh-Hans": "恩典与平安。" } }),
+    );
+
+    await session.handleControl({ type: "session.stop" });
+    expect(publicPublisher.end).toHaveBeenCalledWith(session.id);
+  });
 });

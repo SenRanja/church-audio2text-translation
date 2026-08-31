@@ -3,6 +3,8 @@ import { type FormEvent, useEffect, useState } from 'react'
 
 import App from './App'
 import './Auth.css'
+import { PublicCaptionPage } from './PublicCaptionPage'
+import { getPublicUsername } from './public-route'
 
 export interface CurrentUser {
   id: string
@@ -13,6 +15,12 @@ export interface CurrentUser {
 }
 
 export default function AuthApp() {
+  const publicUsername = getPublicUsername(window.location.pathname)
+  if (publicUsername) return <PublicCaptionPage username={publicUsername} />
+  return <AuthenticatedApp />
+}
+
+function AuthenticatedApp() {
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [loading, setLoading] = useState(true)
 

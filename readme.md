@@ -14,6 +14,7 @@ Real-time captions and multilingual translation for church sermons. The browser 
 - Displays one to three target languages while preserving caption order.
 - Captures microphones, USB audio devices, and Windows system audio.
 - Includes fullscreen projection, floating captions, font controls, automatic stopping, and transcript downloads.
+- Publishes a read-only live caption page at `https://<domain>/<username>` without additional AI calls.
 - Provides user authentication, administrator account management, and up to 10 independent concurrent sessions.
 
 ## System Architecture

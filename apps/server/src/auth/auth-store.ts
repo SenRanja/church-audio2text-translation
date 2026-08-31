@@ -11,7 +11,6 @@ const defaultSessionLifetimeHours = 12;
 
 export interface AuthSettings {
   sessionLifetimeHours: number;
-  singleSessionOnly: boolean;
 }
 
 export interface AuthUser {
@@ -35,7 +34,6 @@ interface UserRow {
 
 interface SettingsRow {
   session_lifetime_hours: number;
-  single_session_only: number;
 }
 
 export class AuthStore {
@@ -70,16 +68,13 @@ export class AuthStore {
     const settings = this.getSettings();
     const lifetimeMs = settings.sessionLifetimeHours * 60 * 60 * 1_000;
     this.database.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
-    if (settings.singleSessionOnly) {
-      this.database.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
-    }
+    this.database.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
     this.database
       .prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)")
       .run(hashToken(token), userId, now + lifetimeMs, now);
     return {
       token,
       maxAgeSeconds: settings.sessionLifetimeHours * 60 * 60,
-      singleSessionOnly: settings.singleSessionOnly,
     };
   }
 
@@ -108,11 +103,10 @@ export class AuthStore {
 
   getSettings(): AuthSettings {
     const row = this.database
-      .prepare("SELECT session_lifetime_hours, single_session_only FROM app_settings WHERE id = 1")
+      .prepare("SELECT session_lifetime_hours FROM app_settings WHERE id = 1")
       .get() as SettingsRow;
     return {
       sessionLifetimeHours: row.session_lifetime_hours,
-      singleSessionOnly: row.single_session_only === 1,
     };
   }
 
@@ -120,10 +114,10 @@ export class AuthStore {
     this.database
       .prepare(`
         UPDATE app_settings
-        SET session_lifetime_hours = ?, single_session_only = ?
+        SET session_lifetime_hours = ?, single_session_only = 1
         WHERE id = 1
       `)
-      .run(settings.sessionLifetimeHours, settings.singleSessionOnly ? 1 : 0);
+      .run(settings.sessionLifetimeHours);
     return this.getSettings();
   }
 

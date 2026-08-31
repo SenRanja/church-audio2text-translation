@@ -14,6 +14,7 @@ import { z } from "zod";
 import { AuthStore, type AuthUser } from "./auth/auth-store";
 import type { AppConfig } from "./config";
 import { defaultTranslationInstructions } from "./openai/translator";
+import { PublicStreamHub } from "./public-stream/public-stream-hub";
 import { LiveSession } from "./sessions/live-session";
 import { SourceTranscriptWriter } from "./transcripts/source-transcript-writer";
 
@@ -31,6 +32,7 @@ export async function buildServer(config: AppConfig) {
   });
   const sessions = new Set<LiveSession>();
   const sessionOwners = new Map<LiveSession, string>();
+  const publicStreams = new PublicStreamHub();
   const authStore = await AuthStore.open(config.authDatabasePath);
 
   await app.register(cookiePlugin);
@@ -56,7 +58,6 @@ export async function buildServer(config: AppConfig) {
   const userParamsSchema = z.object({ id: z.string().uuid() });
   const authSettingsSchema = z.object({
     sessionLifetimeHours: z.number().int().min(1).max(720),
-    singleSessionOnly: z.boolean(),
   });
   const promptSchema = z.object({ prompt: z.string().max(12_000) });
 
@@ -76,10 +77,8 @@ export async function buildServer(config: AppConfig) {
         return reply.code(401).send({ error: "ERROR" });
       }
       const session = authStore.createSession(user.id);
-      if (session.singleSessionOnly) {
-        for (const [activeSession, ownerId] of sessionOwners) {
-          if (ownerId === user.id) activeSession.revokeAuthentication();
-        }
+      for (const [activeSession, ownerId] of sessionOwners) {
+        if (ownerId === user.id) activeSession.revokeAuthentication();
       }
       reply.setCookie("church_session", session.token, sessionCookieOptions(config, session.maxAgeSeconds));
       return { user: publicUser(user) };
@@ -168,6 +167,28 @@ export async function buildServer(config: AppConfig) {
     return { ok: true };
   });
 
+  app.get("/api/public/live/:username", async (request, reply) => {
+    const params = loginSchema.pick({ username: true }).safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: "Invalid username" });
+
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      connection: "keep-alive",
+      "x-accel-buffering": "no",
+    });
+    const unsubscribe = publicStreams.subscribe(params.data.username, (snapshot) => {
+      reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`);
+    });
+    const keepAlive = setInterval(() => reply.raw.write(": keep-alive\n\n"), 15_000);
+    request.raw.on("close", () => {
+      clearInterval(keepAlive);
+      unsubscribe();
+    });
+    return reply;
+  });
+
   app.get(
     "/ws/session",
     {
@@ -206,7 +227,12 @@ export async function buildServer(config: AppConfig) {
     session = new LiveSession(socket, config, removeSession, (event, details = {}) => {
       const log = event.endsWith(".error") ? app.log.error.bind(app.log) : app.log.debug.bind(app.log);
       log({ event, sessionId: session.id, ...details }, event);
-    }, sourceTranscript, user.customPrompt);
+    }, sourceTranscript, user.customPrompt, {
+      start: (sessionId, sourceLanguage, targetLanguages) =>
+        publicStreams.start(user.username, sessionId, sourceLanguage, targetLanguages),
+      publish: (sessionId, message) => publicStreams.publish(user.username, sessionId, message),
+      end: (sessionId) => publicStreams.end(user.username, sessionId),
+    });
     sessions.add(session);
     sessionOwners.set(session, user.id);
 

@@ -53,7 +53,8 @@ LOG_LEVEL=info
 - 握手速率限制为每个客户端 IP 每分钟至少 30 次，允许同一教会 NAT 网络下多人连接和少量重试。
 - 每个活动会话会占用一条 Deepgram Streaming 连接，并可能同时产生一个 OpenAI 请求。必须先确认供应商账户配额和预算。
 - 多容器部署时，上限按实例分别计算；若需要严格的全局上限、会话迁移或断线恢复，需要 Redis 或统一准入服务。
-- API 和 WebSocket 都要求有效登录。每个浏览器会话 Cookie 有效 12 小时；删除普通账户时，其所有登录会话立即失效。
+- 操作者 API 和 WebSocket 都要求有效登录；管理员可设置 1 至 720 小时的登录时长，默认 12 小时。每个用户强制只允许一个登录终端，新登录会撤销旧 Cookie 并关闭旧翻译连接。
+- `/api/public/live/:username` 是匿名只读 SSE 字幕流，不调用 Deepgram 或 OpenAI；公开页面地址为 `https://translation.example.org/<username>`。
 
 ## 3. 构建并启动
 
@@ -93,6 +94,17 @@ server {
 
     ssl_certificate /etc/letsencrypt/live/translation.example.org/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/translation.example.org/privkey.pem;
+
+    location ^~ /api/public/live/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 4h;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:3000;

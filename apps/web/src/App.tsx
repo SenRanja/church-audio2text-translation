@@ -1,6 +1,7 @@
 import {
   Check,
   Church,
+  Copy,
   Download,
   Expand,
   Mic,
@@ -28,6 +29,7 @@ import {
 } from './languages'
 import { type SessionPhase, useLiveTranslation } from './useLiveTranslation'
 import { useCaptionWindow } from './useCaptionWindow'
+import { getPublicBroadcastUrl } from './public-route'
 
 const phaseLabels: Record<SessionPhase, string> = {
   idle: 'Ready',
@@ -49,6 +51,7 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
   const [activeLanguage, setActiveLanguage] = useState<TargetLanguage>('zh-Hans')
   const [autoScroll, setAutoScroll] = useState(true)
   const [captionNotice, setCaptionNotice] = useState('')
+  const [linkCopied, setLinkCopied] = useState(false)
   const [fontSizes, setFontSizes] = useState<Record<TextArea, number>>({
     en: 18,
     'zh-Hans': 18,
@@ -72,6 +75,7 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
     })),
   })
   const captionToggleRef = useRef<() => void>(() => undefined)
+  const copyResetTimerRef = useRef<number>(undefined)
 
   const toggleCaption = async () => {
     const succeeded = await caption.toggle()
@@ -92,6 +96,10 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
     return () => window.removeEventListener('keydown', handleShortcut)
   }, [])
 
+  useEffect(() => () => {
+    if (copyResetTimerRef.current) window.clearTimeout(copyResetTimerRef.current)
+  }, [])
+
   useEffect(() => {
     if (!autoScroll) return
     const visibleLanguages = window.matchMedia('(max-width: 760px)').matches
@@ -106,6 +114,18 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
   }, [session.segments, session.interim, session.targetLanguages, activeLanguage, autoScroll])
 
   const isActive = !['idle', 'error'].includes(session.phase)
+  const publicBroadcastUrl = getPublicBroadcastUrl(window.location.origin, user.username)
+
+  const copyBroadcastLink = async () => {
+    try {
+      await copyText(publicBroadcastUrl)
+      setLinkCopied(true)
+      if (copyResetTimerRef.current) window.clearTimeout(copyResetTimerRef.current)
+      copyResetTimerRef.current = window.setTimeout(() => setLinkCopied(false), 2_000)
+    } catch {
+      setCaptionNotice('The public link could not be copied.')
+    }
+  }
 
   const adjustFontSize = (area: TextArea, change: number) => {
     setFontSizes((current) => ({
@@ -341,6 +361,16 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
               >
                 <Plus size={18} />
               </button>
+              <button
+                className="icon-button toolbar-control broadcast-link-button"
+                type="button"
+                onClick={() => void copyBroadcastLink()}
+                aria-label="Copy public broadcast link"
+                title={publicBroadcastUrl}
+              >
+                {linkCopied ? <Check size={17} /> : <Copy size={17} />}
+                <span>{linkCopied ? 'Copied' : 'Copy link'}</span>
+              </button>
               <label className="toggle toolbar-control">
                 <input
                   type="checkbox"
@@ -575,6 +605,23 @@ function formatTime(milliseconds: number) {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+}
+
+async function copyText(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value)
+    return
+  }
+
+  const input = document.createElement('textarea')
+  input.value = value
+  input.style.position = 'fixed'
+  input.style.opacity = '0'
+  document.body.append(input)
+  input.select()
+  const copied = document.execCommand('copy')
+  input.remove()
+  if (!copied) throw new Error('Copy failed')
 }
 
 export default App

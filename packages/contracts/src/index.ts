@@ -88,3 +88,21 @@ export interface TranslationSegment {
   endMs: number;
   state: "transcribing" | "translating" | "complete" | "failed";
 }
+
+export interface PublicLiveSnapshot {
+  username: string;
+  sessionId: string | null;
+  sourceLanguage: SourceLanguage | null;
+  targetLanguages: TargetLanguage[];
+  status: SessionStatus | "offline";
+  queueDepth: number;
+  interim: string;
+  segments: TranslationSegment[];
+}
+
+export type PublicLiveEvent =
+  | { type: "snapshot"; snapshot: PublicLiveSnapshot }
+  | { type: "status"; status: SessionStatus; queueDepth: number }
+  | { type: "interim"; text: string }
+  | { type: "segment"; segment: TranslationSegment }
+  | { type: "offline" };
