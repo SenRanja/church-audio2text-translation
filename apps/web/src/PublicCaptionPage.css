@@ -49,6 +49,8 @@
 .public-font-controls button { width: 34px; height: 30px; padding: 0; color: var(--ink-soft); border: 1px solid var(--line-dark); border-radius: 4px; background: var(--surface); font: 700 12px/1 var(--sans); cursor: pointer; }
 .public-font-controls button:hover:not(:disabled) { color: var(--navy); background: var(--surface-strong); }
 .public-font-controls button:disabled { opacity: .4; cursor: not-allowed; }
+.public-pane-count-button { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; flex: 0 0 auto; color: var(--navy); border: 1px solid var(--line-dark); border-radius: 4px; background: var(--surface); cursor: pointer; }
+.public-pane-count-button:hover { color: white; background: var(--navy); }
 .public-segment-list { flex: 1; min-height: 0; height: auto; padding: 5px 22px 18px; overflow-y: auto; }
 .public-segment { padding: 11px 0; display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 8px; border-bottom: 1px solid var(--line); animation: public-reveal .3s ease-out both; }
 .public-segment time { margin-top: 5px; color: var(--muted-light); font-family: var(--mono); font-size: 10px; }

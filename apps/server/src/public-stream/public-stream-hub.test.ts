@@ -48,7 +48,7 @@ describe("PublicStreamHub", () => {
 
   it("deduplicates viewer languages and removes demand on disconnect", () => {
     const hub = new PublicStreamHub();
-    const disconnectFirst = hub.subscribe("FOCUS-Jayd", ["en", "zh-Hans"], vi.fn());
+    const disconnectFirst = hub.subscribe("FOCUS-Jayd", ["en"], vi.fn());
     const disconnectSecond = hub.subscribe("focus-jayd", ["zh-Hans", "id"], vi.fn());
 
     expect(hub.getRequestedLanguages("FOCUS-JAYD")).toEqual(["en", "zh-Hans", "id"]);

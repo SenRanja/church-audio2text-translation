@@ -113,7 +113,7 @@ export async function buildServer(config: AppConfig) {
     const churchDefault = authStore.getDefaultPrompt() || defaultTranslationInstructions;
     return {
       prompt: user.isSeed ? churchDefault : user.customPrompt || churchDefault,
-      usingDefault: !user.customPrompt,
+      usingDefault: user.isSeed || !user.customPrompt,
       editsChurchDefault: user.isSeed,
     };
   });
@@ -129,7 +129,7 @@ export async function buildServer(config: AppConfig) {
       const churchDefault = authStore.updateDefaultPrompt(prompt) || defaultTranslationInstructions;
       return { prompt: churchDefault, usingDefault: true, editsChurchDefault: true };
     }
-    if (!authStore.updateSessionPrompt(request.cookies?.church_session, prompt)) {
+    if (!authStore.updateUserPrompt(request.cookies?.church_session, prompt)) {
       return reply.code(404).send({ error: "ERROR" });
     }
     const churchDefault = authStore.getDefaultPrompt() || defaultTranslationInstructions;
@@ -269,7 +269,9 @@ export async function buildServer(config: AppConfig) {
     session = new LiveSession(socket, config, removeSession, (event, details = {}) => {
       const log = event.endsWith(".error") ? app.log.error.bind(app.log) : app.log.debug.bind(app.log);
       log({ event, sessionId: session.id, ...details }, event);
-    }, sourceTranscript, user.customPrompt || authStore.getDefaultPrompt() || defaultTranslationInstructions, {
+    }, sourceTranscript, user.isSeed
+      ? authStore.getDefaultPrompt() || defaultTranslationInstructions
+      : user.customPrompt || authStore.getDefaultPrompt() || defaultTranslationInstructions, {
       start: (sessionId, sourceLanguage, targetLanguages) =>
         publicStreams.start(user.username, sessionId, sourceLanguage, targetLanguages),
       publish: (sessionId, message) => publicStreams.publish(user.username, sessionId, message),

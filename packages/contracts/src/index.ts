@@ -13,8 +13,10 @@ export const sourceLanguageSchema = z.enum([
 
 export const targetLanguageSchema = z.enum(["en", "zh-Hans", "zh-Hant", "ja", "ko", "id"]);
 export const viewerLanguagesSchema = z
-  .tuple([targetLanguageSchema, targetLanguageSchema])
-  .refine(([first, second]) => first !== second, {
+  .array(targetLanguageSchema)
+  .min(1)
+  .max(2)
+  .refine((languages) => new Set(languages).size === languages.length, {
     message: "Viewer languages must be unique",
   });
 export const inputModeSchema = z.enum(["microphone", "system"]);

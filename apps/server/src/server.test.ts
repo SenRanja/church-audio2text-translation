@@ -106,7 +106,7 @@ describe("WebSocket session capacity", () => {
 });
 
 describe("authentication", () => {
-  it("rejects public streams without exactly two distinct supported languages", async () => {
+  it("rejects invalid public language selections", async () => {
     const app = await buildServer(loadConfig({ AUTH_DB_PATH: ":memory:", LOG_LEVEL: "silent" }));
     await app.ready();
     try {
@@ -252,6 +252,35 @@ describe("authentication", () => {
         headers: { cookie: thirdCookie },
       });
       expect(restored.json()).toEqual({
+        prompt,
+        usingDefault: false,
+        editsChurchDefault: false,
+      });
+
+      const resetPrompt = await app.inject({
+        method: "PUT",
+        url: "/api/auth/prompt",
+        headers: { ...origin, cookie: thirdCookie },
+        payload: { prompt: "" },
+      });
+      expect(resetPrompt.json()).toEqual({
+        prompt: defaultPrompt,
+        usingDefault: true,
+        editsChurchDefault: false,
+      });
+
+      const fourthLogin = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        headers: origin,
+        payload: { username: "prompt-user", password: "secure-pass" },
+      });
+      const resetPersisted = await app.inject({
+        method: "GET",
+        url: "/api/auth/prompt",
+        headers: { cookie: sessionCookie(fourthLogin.headers["set-cookie"]) },
+      });
+      expect(resetPersisted.json()).toEqual({
         prompt: defaultPrompt,
         usingDefault: true,
         editsChurchDefault: false,

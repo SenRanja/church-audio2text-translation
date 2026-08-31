@@ -83,9 +83,11 @@ describe("clientMessageSchema", () => {
 });
 
 describe("viewerLanguagesSchema", () => {
-  it("requires exactly two distinct supported languages", () => {
+  it("requires one or two distinct supported languages", () => {
     expect(viewerLanguagesSchema.safeParse(["en", "zh-Hans"]).success).toBe(true);
-    expect(viewerLanguagesSchema.safeParse(["en"]).success).toBe(false);
+    expect(viewerLanguagesSchema.safeParse(["en"]).success).toBe(true);
+    expect(viewerLanguagesSchema.safeParse([]).success).toBe(false);
+    expect(viewerLanguagesSchema.safeParse(["en", "zh-Hans", "ja"]).success).toBe(false);
     expect(viewerLanguagesSchema.safeParse(["en", "en"]).success).toBe(false);
     expect(viewerLanguagesSchema.safeParse(["en", "fr"]).success).toBe(false);
   });

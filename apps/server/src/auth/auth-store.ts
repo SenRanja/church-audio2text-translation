@@ -85,7 +85,7 @@ export class AuthStore {
     const now = Date.now();
     const row = this.database
       .prepare(`
-        SELECT users.*, sessions.custom_prompt AS session_custom_prompt FROM sessions
+        SELECT users.* FROM sessions
         JOIN users ON users.id = sessions.user_id
         WHERE sessions.token_hash = ? AND sessions.expires_at > ?
       `)
@@ -135,10 +135,14 @@ export class AuthStore {
     return this.getSettings();
   }
 
-  updateSessionPrompt(token: string | undefined, customPrompt: string) {
+  updateUserPrompt(token: string | undefined, customPrompt: string) {
     if (!token) return false;
     return this.database
-      .prepare("UPDATE sessions SET custom_prompt = ? WHERE token_hash = ? AND expires_at > ?")
+      .prepare(`
+        UPDATE users SET custom_prompt = ? WHERE id = (
+          SELECT user_id FROM sessions WHERE token_hash = ? AND expires_at > ?
+        )
+      `)
       .run(customPrompt, hashToken(token), Date.now()).changes === 1;
   }
 
@@ -263,6 +267,6 @@ function toAuthUser(row: UserRow): AuthUser {
     role: row.role,
     isSeed: row.is_seed === 1,
     createdAt: row.created_at,
-    customPrompt: row.session_custom_prompt ?? "",
+    customPrompt: row.custom_prompt,
   };
 }

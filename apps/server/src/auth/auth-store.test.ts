@@ -54,7 +54,7 @@ describe("AuthStore persistence", () => {
     store.close();
   });
 
-  it("persists the church default but clears a user's custom prompt on login", async () => {
+  it("persists church and user prompts across logins and restarts", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "church-auth-prompt-"));
     temporaryDirectories.push(directory);
     const databasePath = path.join(directory, "auth.sqlite");
@@ -62,16 +62,21 @@ describe("AuthStore persistence", () => {
     const user = await store.createUser("prompt-user", "persistent-password");
     store.updateDefaultPrompt("Church default prompt");
     const first = store.createSession(user.id);
-    expect(store.updateSessionPrompt(first.token, "Temporary custom prompt")).toBe(true);
-    expect(store.getSessionUser(first.token)?.customPrompt).toBe("Temporary custom prompt");
+    expect(store.updateUserPrompt(first.token, "Saved custom prompt")).toBe(true);
+    expect(store.getSessionUser(first.token)?.customPrompt).toBe("Saved custom prompt");
 
     const second = store.createSession(user.id);
     expect(store.getSessionUser(first.token)).toBeNull();
-    expect(store.getSessionUser(second.token)?.customPrompt).toBe("");
+    expect(store.getSessionUser(second.token)?.customPrompt).toBe("Saved custom prompt");
     store.close();
 
     const reopened = await AuthStore.open(databasePath);
     expect(reopened.getDefaultPrompt()).toBe("Church default prompt");
+    const reopenedUser = await reopened.verifyCredentials("prompt-user", "persistent-password");
+    const reopenedSession = reopened.createSession(reopenedUser!.id);
+    expect(reopened.getSessionUser(reopenedSession.token)?.customPrompt).toBe("Saved custom prompt");
+    expect(reopened.updateUserPrompt(reopenedSession.token, "")).toBe(true);
+    expect(reopened.getSessionUser(reopenedSession.token)?.customPrompt).toBe("");
     reopened.close();
   });
 

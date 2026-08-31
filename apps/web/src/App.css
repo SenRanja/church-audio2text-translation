@@ -313,7 +313,7 @@ select {
 .focus-session-actions { display: flex; gap: 4px; }
 .focus-session-actions .action-button { width: 40px; height: 40px; }
 .add-pane-button { width: 44px; padding: 0; color: var(--navy); }
-.broadcast-link-button { width: auto; min-width: 102px; gap: 7px; color: var(--navy); font: inherit; font-size: 12px; font-weight: 750; }
+.broadcast-link-button { width: auto; min-width: 158px; gap: 7px; color: var(--navy); font: inherit; font-size: 12px; font-weight: 750; }
 .toggle {
   display: inline-flex;
   gap: 8px;
@@ -578,8 +578,8 @@ select {
   .utility-actions { width: 100%; min-height: 58px; padding: 8px 6px; flex-wrap: wrap; justify-content: center; order: 1; border-bottom: 1px solid var(--line); }
   .toolbar-control { min-height: 42px; padding-inline: 10px; }
   .utility-actions .toggle { width: 42px; min-width: 42px; padding: 0; justify-content: center; font-size: 0; }
-  .broadcast-link-button { width: 42px; min-width: 42px; padding: 0; }
-  .broadcast-link-button span, .floating-button span { display: none; }
+  .broadcast-link-button { width: auto; min-width: 150px; padding: 0 10px; }
+  .floating-button span { display: none; }
   .focus-view-button { width: 42px; min-width: 42px; padding: 0; }
   .focus-view-button span, .focus-compact-status { display: none; }
   .floating-button { width: 44px; min-width: 44px; padding: 0; }

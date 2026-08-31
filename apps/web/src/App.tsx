@@ -419,7 +419,7 @@ function App({ user, onLogout }: { user: CurrentUser; onLogout: () => Promise<vo
                 title={publicBroadcastUrl}
               >
                 {linkCopied ? <Check size={17} /> : <Copy size={17} />}
-                <span>{linkCopied ? 'Copied' : 'Copy link'}</span>
+                <span>{linkCopied ? 'Copied' : 'Copy broadcast link'}</span>
               </button>
               <label className="toggle toolbar-control">
                 <input

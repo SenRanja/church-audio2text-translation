@@ -265,7 +265,7 @@ export function AccountMenu({ user, onLogout }: { user: CurrentUser; onLogout: (
             <p className="account-prompt-note">
               {editsChurchDefault
                 ? 'Changes here update the Church default prompt for every user.'
-                : 'A custom prompt applies only to this login and is not saved after you sign in again.'}
+                : 'Your custom prompt is saved to your account. Use church default to restore the shared prompt.'}
             </p>
             <textarea
               aria-label="Translation prompt"

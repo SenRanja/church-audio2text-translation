@@ -1,4 +1,4 @@
-import { Check, Church, Radio, Waves } from 'lucide-react'
+import { Check, Church, Plus, Radio, Waves, X } from 'lucide-react'
 import type { PublicLiveEvent, PublicLiveSnapshot, TargetLanguage, ViewerLanguages } from '@church/contracts'
 import { useEffect, useRef, useState } from 'react'
 
@@ -68,8 +68,22 @@ export function PublicCaptionPage({ username }: { username: string }) {
     }
   }, [autoScroll, selectedLanguages, snapshot])
 
-  const selectLanguage = (pane: 0 | 1, language: TargetLanguage) => {
-    setSelectedLanguages((current) => pane === 0 ? [language, current[1]] : [current[0], language])
+  const selectLanguage = (pane: number, language: TargetLanguage) => {
+    setSelectedLanguages((current) => current.map((selected, index) => index === pane ? language : selected))
+  }
+
+  const addPane = () => {
+    setSelectedLanguages((current) => {
+      if (current.length >= 2) return current
+      const language = targetLanguageOptions.find((option) => !current.includes(option.value))?.value
+      return language ? [...current, language] : current
+    })
+  }
+
+  const removePane = (pane: number) => {
+    setSelectedLanguages((current) => current.length > 1
+      ? current.filter((_, index) => index !== pane)
+      : current)
   }
 
   const adjustFontSize = (language: TargetLanguage, change: number) => {
@@ -105,7 +119,7 @@ export function PublicCaptionPage({ username }: { username: string }) {
       <main className="public-caption-main">
         <section
           className="public-translation-grid"
-          style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}
+          style={{ gridTemplateColumns: `repeat(${selectedLanguages.length}, minmax(0, 1fr))` }}
         >
           {selectedLanguages.map((language, pane) => {
             const details = getTargetLanguageOption(language)
@@ -116,13 +130,13 @@ export function PublicCaptionPage({ username }: { username: string }) {
                     <select
                       aria-label={`Caption language ${pane + 1}`}
                       value={language}
-                      onChange={(event) => selectLanguage(pane as 0 | 1, event.target.value as TargetLanguage)}
+                      onChange={(event) => selectLanguage(pane, event.target.value as TargetLanguage)}
                     >
                       {targetLanguageOptions.map((option) => (
                         <option
                           key={option.value}
                           value={option.value}
-                          disabled={selectedLanguages[1 - pane] === option.value}
+                          disabled={selectedLanguages.some((selected, index) => index !== pane && selected === option.value)}
                         >
                           {option.label}
                         </option>
@@ -155,6 +169,27 @@ export function PublicCaptionPage({ username }: { username: string }) {
                       <span aria-hidden="true"><Check size={12} /></span>
                       Auto-scroll
                     </label>
+                    {selectedLanguages.length > 1 ? (
+                      <button
+                        className="public-pane-count-button"
+                        type="button"
+                        onClick={() => removePane(pane)}
+                        aria-label={`Close ${details.label} caption panel`}
+                        title="Close caption panel"
+                      >
+                        <X size={17} />
+                      </button>
+                    ) : (
+                      <button
+                        className="public-pane-count-button"
+                        type="button"
+                        onClick={addPane}
+                        aria-label="Add second caption panel"
+                        title="Add second caption panel"
+                      >
+                        <Plus size={18} />
+                      </button>
+                    )}
                   </div>
                 </header>
                 <div className="public-segment-list">
@@ -199,14 +234,15 @@ function loadViewerLanguages(username: string): ViewerLanguages {
   try {
     const stored = JSON.parse(localStorage.getItem(`public-caption-languages:${username.toLocaleLowerCase()}`) ?? '') as unknown
     if (
-      Array.isArray(stored) && stored.length === 2 && stored[0] !== stored[1] &&
+      Array.isArray(stored) && stored.length >= 1 && stored.length <= 2 &&
+      new Set(stored).size === stored.length &&
       stored.every((language) => targetLanguageOptions.some((option) => option.value === language))
     ) {
       return stored as ViewerLanguages
     }
   } catch {
   }
-  return ['en', 'zh-Hans']
+  return ['en']
 }
 
 function loadViewerFontSizes(username: string): Record<TargetLanguage, number> {
