@@ -1,15 +1,28 @@
 import { appendFile, mkdir, open } from "node:fs/promises";
 import path from "node:path";
+import type { SourceLanguage, TargetLanguage } from "@church/contracts";
+
+interface TranscriptDetails {
+  inputMode: "microphone" | "system";
+  sourceLanguage: SourceLanguage;
+  targetLanguages: TargetLanguage[];
+}
 
 export class SourceTranscriptWriter {
   private filePath: string | undefined;
   private writeQueue: Promise<void> = Promise.resolve();
+  private details: TranscriptDetails | undefined;
 
   constructor(
     private readonly logDirectory: string,
     private readonly onError: (error: unknown) => void,
+    private readonly username: string,
     private readonly now: () => Date = () => new Date(),
   ) {}
+
+  configure(details: TranscriptDetails) {
+    this.details = details;
+  }
 
   append(source: string) {
     const text = source.trim();
@@ -36,6 +49,7 @@ export class SourceTranscriptWriter {
       const filePath = path.join(this.logDirectory, filename);
       try {
         const handle = await open(filePath, "wx");
+        await handle.writeFile(this.header(), "utf8");
         await handle.close();
         return filePath;
       } catch (error) {
@@ -43,6 +57,22 @@ export class SourceTranscriptWriter {
         throw error;
       }
     }
+  }
+
+  private header() {
+    const details = this.details;
+    const capture = details?.inputMode === "system" ? "Screen / system audio" : "Microphone";
+    return [
+      "Title: Church Translation Source Transcript",
+      `User: ${this.username}`,
+      `Capture: ${capture}`,
+      `Source language: ${details?.sourceLanguage ?? "Unknown"}`,
+      `Target languages: ${details?.targetLanguages.join(", ") ?? "Unknown"}`,
+      "",
+      "Transcript:",
+      "",
+      "",
+    ].join("\n");
   }
 }
 

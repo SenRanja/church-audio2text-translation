@@ -53,4 +53,23 @@ describe("SermonTranslator", () => {
       { code: "ja", name: "Japanese" },
     ]);
   });
+
+  it("uses a user prompt instead of the default church prompt", async () => {
+    responsesCreate.mockResolvedValue({
+      id: "response_custom",
+      output_text: JSON.stringify({ en: "A child-friendly translation." }),
+    });
+    const translator = new SermonTranslator(
+      "test-key",
+      "gpt-4o-mini",
+      vi.fn(),
+      "Translate in language suitable for young children.",
+    );
+
+    await translator.translate("Source", [], 1, ["en"]);
+
+    expect(responsesCreate.mock.calls[0]?.[0].instructions).toBe(
+      "Translate in language suitable for young children.",
+    );
+  });
 });

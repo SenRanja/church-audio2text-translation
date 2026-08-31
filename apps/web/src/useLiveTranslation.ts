@@ -268,6 +268,7 @@ export function useLiveTranslation() {
         send({
           type: 'session.start',
           sourceLanguage,
+          inputMode,
           targetLanguages,
           mimeType,
           inactivityTimeoutMinutes,

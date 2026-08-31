@@ -12,6 +12,7 @@ export const sourceLanguageSchema = z.enum([
 ]);
 
 export const targetLanguageSchema = z.enum(["en", "zh-Hans", "zh-Hant", "ja", "ko", "id"]);
+export const inputModeSchema = z.enum(["microphone", "system"]);
 export const targetLanguagesSchema = z
   .array(targetLanguageSchema)
   .min(1)
@@ -29,6 +30,7 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("session.start"),
     sourceLanguage: sourceLanguageSchema,
+    inputMode: inputModeSchema.default("microphone"),
     mimeType: z.literal("audio/webm;codecs=opus"),
     inactivityTimeoutMinutes: z.number().int().min(2).max(30).default(15),
     targetLanguages: targetLanguagesSchema,

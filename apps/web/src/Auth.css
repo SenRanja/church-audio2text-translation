@@ -23,7 +23,7 @@
 .login-brand strong { font-family: var(--display); font-size: 24px; font-weight: 650; }
 .login-form label { display: grid; gap: 6px; margin-top: 15px; }
 .login-form label > span { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
-.login-form input, .account-create input {
+.login-form input, .account-create input, .account-settings input[type="number"] {
   width: 100%;
   height: 44px;
   padding: 0 12px;
@@ -70,7 +70,9 @@
   position: absolute;
   top: 48px;
   right: 0;
-  width: min(360px, calc(100vw - 24px));
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100svh - 72px);
+  overflow-y: auto;
   padding: 16px;
   border: 1px solid var(--line);
   border-top: 3px solid var(--navy);
@@ -84,6 +86,17 @@
 .account-popover > header span, .account-list small { color: var(--muted); font-size: 10px; text-transform: uppercase; }
 .account-popover button { border: 0; border-radius: 5px; cursor: pointer; }
 .account-popover > header button, .account-list button { width: 34px; height: 34px; display: grid; place-items: center; color: var(--muted); background: transparent; }
+.account-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.account-section-heading { margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.account-section-heading > span { display: grid; gap: 2px; }
+.account-section-heading strong { color: var(--ink); font-size: 12px; }
+.account-section-heading small { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.account-section-heading button, .prompt-actions button { min-height: 32px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; color: var(--ink-soft); background: var(--surface-strong); font: inherit; font-size: 11px; font-weight: 700; }
+.account-settings > label:not(.account-toggle) { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.duration-input { display: flex; align-items: center; gap: 7px; font-weight: 500; }
+.account-settings input[type="number"] { width: 78px; height: 36px; font-size: 12px; }
+.account-toggle { margin-top: 11px; display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 11px; cursor: pointer; }
+.account-toggle input { width: 16px; height: 16px; accent-color: var(--navy); }
 .account-create { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr 40px; gap: 7px; }
 .account-create input { min-width: 0; height: 40px; font-size: 12px; }
 .account-create button { display: grid; place-items: center; color: white; background: var(--navy); }
@@ -92,6 +105,9 @@
 .account-list span { min-width: 0; display: grid; }
 .account-list strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; }
 .account-list button:not(:disabled):hover { color: var(--red); background: rgba(180, 62, 54, .08); }
+.account-prompt textarea { width: 100%; min-height: 150px; padding: 10px; resize: vertical; color: var(--ink); border: 1px solid var(--line-dark); border-radius: 5px; background: white; font: 11px/1.45 monospace; }
+.prompt-actions { margin-top: 8px; display: flex; justify-content: flex-end; gap: 7px; }
+.prompt-actions button:last-child { color: white; background: var(--navy); }
 .logout-button { width: 100%; height: 40px; margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--ink-soft); background: var(--surface-strong); font: inherit; font-size: 12px; font-weight: 700; }
 
 @media (max-width: 760px) {

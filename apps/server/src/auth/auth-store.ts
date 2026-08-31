@@ -7,7 +7,12 @@ import Database from "better-sqlite3";
 const scrypt = promisify(scryptCallback);
 const seedUsername = "FOCUS-Jayd";
 const seedPassword = "FOCUS-Jayd";
-const sessionLifetimeMs = 12 * 60 * 60 * 1_000;
+const defaultSessionLifetimeHours = 12;
+
+export interface AuthSettings {
+  sessionLifetimeHours: number;
+  singleSessionOnly: boolean;
+}
 
 export interface AuthUser {
   id: string;
@@ -15,6 +20,7 @@ export interface AuthUser {
   role: "admin" | "user";
   isSeed: boolean;
   createdAt: number;
+  customPrompt: string;
 }
 
 interface UserRow {
@@ -24,6 +30,12 @@ interface UserRow {
   role: "admin" | "user";
   is_seed: number;
   created_at: number;
+  custom_prompt: string;
+}
+
+interface SettingsRow {
+  session_lifetime_hours: number;
+  single_session_only: number;
 }
 
 export class AuthStore {
@@ -55,11 +67,20 @@ export class AuthStore {
   createSession(userId: string) {
     const token = randomBytes(32).toString("base64url");
     const now = Date.now();
+    const settings = this.getSettings();
+    const lifetimeMs = settings.sessionLifetimeHours * 60 * 60 * 1_000;
     this.database.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
+    if (settings.singleSessionOnly) {
+      this.database.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
+    }
     this.database
       .prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)")
-      .run(hashToken(token), userId, now + sessionLifetimeMs, now);
-    return token;
+      .run(hashToken(token), userId, now + lifetimeMs, now);
+    return {
+      token,
+      maxAgeSeconds: settings.sessionLifetimeHours * 60 * 60,
+      singleSessionOnly: settings.singleSessionOnly,
+    };
   }
 
   getSessionUser(token: string | undefined) {
@@ -81,8 +102,38 @@ export class AuthStore {
 
   listUsers() {
     return (this.database
-      .prepare("SELECT id, username, role, is_seed, created_at FROM users ORDER BY created_at ASC")
+      .prepare("SELECT id, username, role, is_seed, created_at, custom_prompt FROM users ORDER BY created_at ASC")
       .all() as unknown as UserRow[]).map(toAuthUser);
+  }
+
+  getSettings(): AuthSettings {
+    const row = this.database
+      .prepare("SELECT session_lifetime_hours, single_session_only FROM app_settings WHERE id = 1")
+      .get() as SettingsRow;
+    return {
+      sessionLifetimeHours: row.session_lifetime_hours,
+      singleSessionOnly: row.single_session_only === 1,
+    };
+  }
+
+  updateSettings(settings: AuthSettings) {
+    this.database
+      .prepare(`
+        UPDATE app_settings
+        SET session_lifetime_hours = ?, single_session_only = ?
+        WHERE id = 1
+      `)
+      .run(settings.sessionLifetimeHours, settings.singleSessionOnly ? 1 : 0);
+    return this.getSettings();
+  }
+
+  updateUserPrompt(id: string, customPrompt: string) {
+    const changed = this.database
+      .prepare("UPDATE users SET custom_prompt = ? WHERE id = ?")
+      .run(customPrompt, id).changes;
+    if (changed !== 1) return null;
+    const row = this.database.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow;
+    return toAuthUser(row);
   }
 
   async createUser(username: string, password: string) {
@@ -92,6 +143,7 @@ export class AuthStore {
       role: "user",
       isSeed: false,
       createdAt: Date.now(),
+      customPrompt: "",
     };
     const passwordHash = await hashPassword(password);
     this.database
@@ -121,7 +173,8 @@ export class AuthStore {
         password_hash TEXT NOT NULL,
         role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
         is_seed INTEGER NOT NULL DEFAULT 0 CHECK (is_seed IN (0, 1)),
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        custom_prompt TEXT NOT NULL DEFAULT ''
       );
       CREATE TABLE IF NOT EXISTS sessions (
         token_hash TEXT PRIMARY KEY,
@@ -130,7 +183,18 @@ export class AuthStore {
         created_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS sessions_expires_at ON sessions(expires_at);
+      CREATE TABLE IF NOT EXISTS app_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        session_lifetime_hours INTEGER NOT NULL CHECK (session_lifetime_hours BETWEEN 1 AND 720),
+        single_session_only INTEGER NOT NULL CHECK (single_session_only IN (0, 1))
+      );
+      INSERT OR IGNORE INTO app_settings (id, session_lifetime_hours, single_session_only)
+      VALUES (1, ${defaultSessionLifetimeHours}, 0);
     `);
+    const columns = this.database.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "custom_prompt")) {
+      this.database.exec("ALTER TABLE users ADD COLUMN custom_prompt TEXT NOT NULL DEFAULT ''");
+    }
   }
 
   private async seedAdmin() {
@@ -172,5 +236,6 @@ function toAuthUser(row: UserRow): AuthUser {
     role: row.role,
     isSeed: row.is_seed === 1,
     createdAt: row.created_at,
+    customPrompt: row.custom_prompt,
   };
 }

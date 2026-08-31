@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { ClientMessage, ServerMessage, TargetLanguage } from "@church/contracts";
+import type { ClientMessage, ServerMessage, SourceLanguage, TargetLanguage } from "@church/contracts";
 import type WebSocket from "ws";
 
 import type { AppConfig } from "../config";
@@ -36,6 +36,7 @@ export class LiveSession {
     private readonly onClosed: () => void,
     private readonly telemetry: ApiTelemetry,
     private readonly sourceTranscript?: SourceTranscriptWriter,
+    private readonly customPrompt = "",
   ) {
     this.startTimer = setTimeout(() => {
       if (this.state !== "idle") return;
@@ -49,6 +50,7 @@ export class LiveSession {
     if (message.type === "session.start") {
       return this.start(
         message.sourceLanguage,
+        message.inputMode,
         message.inactivityTimeoutMinutes,
         message.targetLanguages,
       );
@@ -72,8 +74,16 @@ export class LiveSession {
     this.onClosed();
   }
 
+  revokeAuthentication() {
+    if (this.state === "closed") return;
+    this.fail("AUTH_REQUIRED", "This account signed in on another terminal.", false);
+    this.socket.close(1008, "Signed in on another terminal");
+    this.disconnect();
+  }
+
   private async start(
-    language: string,
+    language: SourceLanguage,
+    inputMode: "microphone" | "system",
     inactivityTimeoutMinutes: number,
     targetLanguages: TargetLanguage[],
   ) {
@@ -85,11 +95,17 @@ export class LiveSession {
     }
 
     this.state = "connecting";
+    this.sourceTranscript?.configure({
+      inputMode,
+      sourceLanguage: language,
+      targetLanguages,
+    });
     this.send({ type: "session.status", status: "connecting" });
     this.translator = new SermonTranslator(
       this.config.openAiApiKey,
       this.config.openAiModel,
       this.telemetry,
+      this.customPrompt,
     );
     this.deepgram = new DeepgramLiveClient({
       apiKey: this.config.deepgramApiKey,

@@ -13,6 +13,7 @@ import { z } from "zod";
 
 import { AuthStore, type AuthUser } from "./auth/auth-store";
 import type { AppConfig } from "./config";
+import { defaultTranslationInstructions } from "./openai/translator";
 import { LiveSession } from "./sessions/live-session";
 import { SourceTranscriptWriter } from "./transcripts/source-transcript-writer";
 
@@ -29,6 +30,7 @@ export async function buildServer(config: AppConfig) {
     bodyLimit: 32_768,
   });
   const sessions = new Set<LiveSession>();
+  const sessionOwners = new Map<LiveSession, string>();
   const authStore = await AuthStore.open(config.authDatabasePath);
 
   await app.register(cookiePlugin);
@@ -52,6 +54,11 @@ export async function buildServer(config: AppConfig) {
     password: z.string().min(8).max(128),
   });
   const userParamsSchema = z.object({ id: z.string().uuid() });
+  const authSettingsSchema = z.object({
+    sessionLifetimeHours: z.number().int().min(1).max(720),
+    singleSessionOnly: z.boolean(),
+  });
+  const promptSchema = z.object({ prompt: z.string().max(12_000) });
 
   app.post(
     "/api/auth/login",
@@ -68,8 +75,13 @@ export async function buildServer(config: AppConfig) {
         request.log.warn({ event: "auth.login.failed" }, "auth.login.failed");
         return reply.code(401).send({ error: "ERROR" });
       }
-      const token = authStore.createSession(user.id);
-      reply.setCookie("church_session", token, sessionCookieOptions(config));
+      const session = authStore.createSession(user.id);
+      if (session.singleSessionOnly) {
+        for (const [activeSession, ownerId] of sessionOwners) {
+          if (ownerId === user.id) activeSession.revokeAuthentication();
+        }
+      }
+      reply.setCookie("church_session", session.token, sessionCookieOptions(config, session.maxAgeSeconds));
       return { user: publicUser(user) };
     },
   );
@@ -88,10 +100,48 @@ export async function buildServer(config: AppConfig) {
     return { ok: true };
   });
 
+  app.get("/api/auth/prompt", async (request, reply) => {
+    const user = authStore.getSessionUser(request.cookies?.church_session);
+    if (!user) return reply.code(401).send({ error: "ERROR" });
+    return {
+      prompt: user.customPrompt || defaultTranslationInstructions,
+      usingDefault: !user.customPrompt,
+    };
+  });
+
+  app.put("/api/auth/prompt", async (request, reply) => {
+    const user = authStore.getSessionUser(request.cookies?.church_session);
+    const input = promptSchema.safeParse(request.body);
+    if (!user || !input.success || !isAllowedOrigin(request.headers.origin, request.headers.host, config.allowedOrigins)) {
+      return reply.code(400).send({ error: "ERROR" });
+    }
+    const updated = authStore.updateUserPrompt(user.id, input.data.prompt.trim());
+    if (!updated) return reply.code(404).send({ error: "ERROR" });
+    return {
+      prompt: updated.customPrompt || defaultTranslationInstructions,
+      usingDefault: !updated.customPrompt,
+    };
+  });
+
   app.get("/api/admin/users", async (request, reply) => {
     const user = requireAdmin(request.cookies?.church_session, authStore);
     if (!user) return reply.code(403).send({ error: "ERROR" });
     return { users: authStore.listUsers().map(publicUser) };
+  });
+
+  app.get("/api/admin/settings", async (request, reply) => {
+    const user = requireAdmin(request.cookies?.church_session, authStore);
+    if (!user) return reply.code(403).send({ error: "ERROR" });
+    return { settings: authStore.getSettings() };
+  });
+
+  app.put("/api/admin/settings", async (request, reply) => {
+    const admin = requireAdmin(request.cookies?.church_session, authStore);
+    const input = authSettingsSchema.safeParse(request.body);
+    if (!admin || !input.success || !isAllowedOrigin(request.headers.origin, request.headers.host, config.allowedOrigins)) {
+      return reply.code(400).send({ error: "ERROR" });
+    }
+    return { settings: authStore.updateSettings(input.data) };
   });
 
   app.post("/api/admin/users", async (request, reply) => {
@@ -130,7 +180,8 @@ export async function buildServer(config: AppConfig) {
       },
     },
     (socket, request) => {
-    if (!authStore.getSessionUser(request.cookies?.church_session)) {
+    const user = authStore.getSessionUser(request.cookies?.church_session);
+    if (!user) {
       sendError(socket, "AUTH_REQUIRED", "Authentication required.", false);
       return socket.close(1008, "Authentication required");
     }
@@ -145,15 +196,19 @@ export async function buildServer(config: AppConfig) {
     }
 
     let session: LiveSession;
-    const removeSession = () => sessions.delete(session);
+    const removeSession = () => {
+      sessions.delete(session);
+      sessionOwners.delete(session);
+    };
     const sourceTranscript = new SourceTranscriptWriter(logDirectory, (error) => {
       app.log.error({ event: "source.transcript.error", error }, "source.transcript.error");
-    });
+    }, user.username);
     session = new LiveSession(socket, config, removeSession, (event, details = {}) => {
       const log = event.endsWith(".error") ? app.log.error.bind(app.log) : app.log.debug.bind(app.log);
       log({ event, sessionId: session.id, ...details }, event);
-    }, sourceTranscript);
+    }, sourceTranscript, user.customPrompt);
     sessions.add(session);
+    sessionOwners.set(session, user.id);
 
     socket.on("message", (data, isBinary) => {
       if (isBinary) {
@@ -207,13 +262,13 @@ function publicUser(user: AuthUser) {
   };
 }
 
-function sessionCookieOptions(config: AppConfig) {
+function sessionCookieOptions(config: AppConfig, maxAge: number) {
   return {
     path: "/",
     httpOnly: true,
     sameSite: "strict" as const,
     secure: config.authCookieSecure,
-    maxAge: 12 * 60 * 60,
+    maxAge,
   };
 }
 

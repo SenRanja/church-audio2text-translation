@@ -6,7 +6,7 @@ import type WebSocket from "ws";
 import { loadConfig } from "./config";
 import { buildServer } from "./server";
 
-const sessions = vi.hoisted(() => ({ active: 0, created: 0 }));
+const sessions = vi.hoisted(() => ({ active: 0, created: 0, revoked: 0, prompts: [] as string[] }));
 
 vi.mock("./sessions/live-session", () => ({
   LiveSession: class {
@@ -14,15 +14,25 @@ vi.mock("./sessions/live-session", () => ({
     private closed = false;
 
     constructor(
-      _socket: WebSocket,
+      private readonly socket: WebSocket,
       _config: unknown,
       private readonly onClosed: () => void,
+      _telemetry: unknown,
+      _sourceTranscript: unknown,
+      customPrompt: string,
     ) {
       sessions.active += 1;
+      sessions.prompts.push(customPrompt);
     }
 
     handleAudio() {}
     async handleControl() {}
+
+    revokeAuthentication() {
+      sessions.revoked += 1;
+      this.socket.close(1008, "Signed in on another terminal");
+      this.disconnect();
+    }
 
     disconnect() {
       if (this.closed) return;
@@ -36,6 +46,8 @@ vi.mock("./sessions/live-session", () => ({
 afterEach(() => {
   sessions.active = 0;
   sessions.created = 0;
+  sessions.revoked = 0;
+  sessions.prompts = [];
 });
 
 function sessionCookie(setCookie: string | string[] | undefined) {
@@ -94,6 +106,96 @@ describe("WebSocket session capacity", () => {
 });
 
 describe("authentication", () => {
+  it("applies admin session settings and carries each user's prompt into translation sessions", async () => {
+    const app = await buildServer(
+      loadConfig({
+        DEEPGRAM_API_KEY: "test-deepgram-key",
+        OPENAI_API_KEY: "test-openai-key",
+        AUTH_DB_PATH: ":memory:",
+        LOG_LEVEL: "silent",
+      }),
+    );
+    await app.ready();
+    const origin = { origin: "http://localhost:3000" };
+    const sockets: WebSocket[] = [];
+
+    try {
+      const adminLogin = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        headers: origin,
+        payload: { username: "FOCUS-Jayd", password: "FOCUS-Jayd" },
+      });
+      expect(adminLogin.headers["set-cookie"]).toContain("Max-Age=43200");
+      const adminCookie = sessionCookie(adminLogin.headers["set-cookie"]);
+
+      const settings = await app.inject({
+        method: "PUT",
+        url: "/api/admin/settings",
+        headers: { ...origin, cookie: adminCookie },
+        payload: { sessionLifetimeHours: 24, singleSessionOnly: true },
+      });
+      expect(settings.json()).toEqual({
+        settings: { sessionLifetimeHours: 24, singleSessionOnly: true },
+      });
+
+      await app.inject({
+        method: "POST",
+        url: "/api/admin/users",
+        headers: { ...origin, cookie: adminCookie },
+        payload: { username: "prompt-user", password: "secure-pass" },
+      });
+      const firstLogin = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        headers: origin,
+        payload: { username: "prompt-user", password: "secure-pass" },
+      });
+      const firstCookie = sessionCookie(firstLogin.headers["set-cookie"]);
+      const firstSocket = await app.injectWS("/ws/session", {
+        headers: { ...origin, cookie: firstCookie },
+        socket: { remoteAddress: "203.0.113.30" },
+      } as unknown as Partial<IncomingMessage>);
+      sockets.push(firstSocket);
+      const secondLogin = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        headers: origin,
+        payload: { username: "prompt-user", password: "secure-pass" },
+      });
+      const secondCookie = sessionCookie(secondLogin.headers["set-cookie"]);
+      expect(secondLogin.headers["set-cookie"]).toContain("Max-Age=86400");
+      await vi.waitFor(() => expect(firstSocket.readyState).toBe(firstSocket.CLOSED));
+      expect(sessions.revoked).toBe(1);
+
+      const expiredTerminal = await app.inject({
+        method: "GET",
+        url: "/api/auth/me",
+        headers: { cookie: firstCookie },
+      });
+      expect(expiredTerminal.json()).toEqual({ user: null });
+
+      const prompt = "Translate for children and keep sentences short.";
+      const savedPrompt = await app.inject({
+        method: "PUT",
+        url: "/api/auth/prompt",
+        headers: { ...origin, cookie: secondCookie },
+        payload: { prompt },
+      });
+      expect(savedPrompt.json()).toEqual({ prompt, usingDefault: false });
+
+      const socket = await app.injectWS("/ws/session", {
+        headers: { ...origin, cookie: secondCookie },
+        socket: { remoteAddress: "203.0.113.30" },
+      } as unknown as Partial<IncomingMessage>);
+      sockets.push(socket);
+      expect(sessions.prompts.at(-1)).toBe(prompt);
+    } finally {
+      sockets.forEach((socket) => socket.terminate());
+      await app.close();
+    }
+  });
+
   it("uses generic login errors and restricts account management to admins", async () => {
     const app = await buildServer(
       loadConfig({

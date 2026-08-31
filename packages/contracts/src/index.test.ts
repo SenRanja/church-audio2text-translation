@@ -13,6 +13,7 @@ describe("clientMessageSchema", () => {
     ).toEqual({
       type: "session.start",
       sourceLanguage: "en-AU",
+      inputMode: "microphone",
       mimeType: "audio/webm;codecs=opus",
       inactivityTimeoutMinutes: 15,
       targetLanguages: ["en", "zh-Hans", "id"],

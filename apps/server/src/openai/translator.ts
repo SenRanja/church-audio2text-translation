@@ -4,7 +4,7 @@ import type { TargetLanguage, TranslationMap } from "@church/contracts";
 
 import type { ApiTelemetry } from "../telemetry";
 
-const instructions = `You are a professional live interpreter for a Christian church sermon.
+export const defaultTranslationInstructions = `You are a professional live interpreter for a Christian church sermon.
 Treat the source as Christian preaching, Bible teaching, prayer, testimony, or worship. Use that context to disambiguate homophones and choose established Christian terminology, Bible book names, biblical people and places, theological terms, and Scripture references.
 When a pronunciation strongly suggests a Bible book name, biblical name, or established biblical term, interpret and translate it using the standard term for that biblical context rather than a similar-sounding everyday word.
 Remain denomination-neutral. Translate only CURRENT and use CONTEXT only to resolve pronouns, terminology, and omitted references.
@@ -44,6 +44,7 @@ export class SermonTranslator {
     apiKey: string,
     private readonly model: string,
     private readonly telemetry: ApiTelemetry,
+    private readonly customInstructions = "",
   ) {
     this.client = new OpenAI({ apiKey });
   }
@@ -74,7 +75,7 @@ export class SermonTranslator {
         const response = await this.client.responses.create({
           model: this.model,
           store: false,
-          instructions,
+          instructions: this.customInstructions || defaultTranslationInstructions,
           input: JSON.stringify({
             CONTEXT: context,
             CURRENT: current,

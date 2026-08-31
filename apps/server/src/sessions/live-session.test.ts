@@ -106,6 +106,7 @@ describe("LiveSession inactivity timeout", () => {
     await session.handleControl({
       type: "session.start",
       sourceLanguage: "en-AU",
+      inputMode: "microphone",
       mimeType: "audio/webm;codecs=opus",
       inactivityTimeoutMinutes: 2,
       targetLanguages: ["en", "zh-Hans", "id"],
@@ -125,6 +126,7 @@ describe("LiveSession inactivity timeout", () => {
     await session.handleControl({
       type: "session.start",
       sourceLanguage: "en-AU",
+      inputMode: "microphone",
       mimeType: "audio/webm;codecs=opus",
       inactivityTimeoutMinutes: 2,
       targetLanguages: ["en", "zh-Hans", "id"],
@@ -147,6 +149,7 @@ describe("LiveSession inactivity timeout", () => {
     await session.handleControl({
       type: "session.start",
       sourceLanguage: "zh-HK",
+      inputMode: "microphone",
       targetLanguages: ["en", "ko"],
       mimeType: "audio/webm;codecs=opus",
       inactivityTimeoutMinutes: 15,
@@ -173,7 +176,7 @@ describe("LiveSession inactivity timeout", () => {
   });
 
   it("saves only finalized source segments", async () => {
-    const sourceTranscript = { append: vi.fn(), flush: vi.fn() };
+    const sourceTranscript = { configure: vi.fn(), append: vi.fn(), flush: vi.fn() };
     const send = vi.fn();
     const socket = {
       OPEN: 1,
@@ -195,9 +198,15 @@ describe("LiveSession inactivity timeout", () => {
     await session.handleControl({
       type: "session.start",
       sourceLanguage: "en-AU",
+      inputMode: "microphone",
       targetLanguages: ["zh-Hans"],
       mimeType: "audio/webm;codecs=opus",
       inactivityTimeoutMinutes: 15,
+    });
+    expect(sourceTranscript.configure).toHaveBeenCalledWith({
+      inputMode: "microphone",
+      sourceLanguage: "en-AU",
+      targetLanguages: ["zh-Hans"],
     });
     deepgram.onResult?.(result("Temporary words"));
     expect(sourceTranscript.append).not.toHaveBeenCalled();
