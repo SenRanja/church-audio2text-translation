@@ -1,4 +1,4 @@
-import { Check, Church, Plus, Radio, Waves, X } from 'lucide-react'
+import { Check, Church, PanelTopClose, PanelTopOpen, Plus, Radio, Waves, X } from 'lucide-react'
 import type { PublicLiveEvent, PublicLiveSnapshot, TargetLanguage, ViewerLanguages } from '@church/contracts'
 import { useEffect, useRef, useState } from 'react'
 
@@ -25,6 +25,7 @@ export function PublicCaptionPage({ username }: { username: string }) {
   const [selectedLanguages, setSelectedLanguages] = useState<ViewerLanguages>(() => loadViewerLanguages(username))
   const [fontSizes, setFontSizes] = useState<Record<TargetLanguage, number>>(() => loadViewerFontSizes(username))
   const [autoScroll, setAutoScroll] = useState<[boolean, boolean]>([true, true])
+  const [focusView, setFocusView] = useState(false)
   const endRefs = useRef<Partial<Record<TargetLanguage, HTMLDivElement | null>>>({})
 
   useEffect(() => {
@@ -105,7 +106,7 @@ export function PublicCaptionPage({ username }: { username: string }) {
   const source = snapshot.interim || snapshot.segments.at(-1)?.source || 'Awaiting speech'
 
   return (
-    <div className="public-caption-page">
+    <div className={`public-caption-page ${focusView ? 'is-focus-view' : ''}`}>
       <header className="public-header">
         <div className="public-brand">
           <span><Church size={21} strokeWidth={1.8} /></span>
@@ -169,6 +170,19 @@ export function PublicCaptionPage({ username }: { username: string }) {
                       <span aria-hidden="true"><Check size={12} /></span>
                       Auto-scroll
                     </label>
+                    {pane === 0 && (
+                      <button
+                        className={`public-focus-button ${focusView ? 'is-active' : ''}`}
+                        type="button"
+                        onClick={() => setFocusView((current) => !current)}
+                        aria-pressed={focusView}
+                        aria-label={focusView ? 'Exit focus view' : 'Focus view'}
+                        title={focusView ? 'Exit focus view' : 'Focus view'}
+                      >
+                        {focusView ? <PanelTopOpen size={17} /> : <PanelTopClose size={17} />}
+                        <span>{focusView ? 'Exit focus' : 'Focus view'}</span>
+                      </button>
+                    )}
                     {selectedLanguages.length > 1 ? (
                       <button
                         className="public-pane-count-button"

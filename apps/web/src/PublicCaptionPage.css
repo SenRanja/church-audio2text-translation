@@ -51,6 +51,8 @@
 .public-font-controls button:disabled { opacity: .4; cursor: not-allowed; }
 .public-pane-count-button { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; flex: 0 0 auto; color: var(--navy); border: 1px solid var(--line-dark); border-radius: 4px; background: var(--surface); cursor: pointer; }
 .public-pane-count-button:hover { color: white; background: var(--navy); }
+.public-focus-button { min-width: 104px; height: 30px; padding: 0 9px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto; color: var(--navy); border: 1px solid var(--line-dark); border-radius: 4px; background: var(--surface); font: 700 11px/1 var(--sans); cursor: pointer; }
+.public-focus-button:hover, .public-focus-button.is-active { color: white; background: var(--navy); }
 .public-segment-list { flex: 1; min-height: 0; height: auto; padding: 5px 22px 18px; overflow-y: auto; }
 .public-segment { padding: 11px 0; display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 8px; border-bottom: 1px solid var(--line); animation: public-reveal .3s ease-out both; }
 .public-segment time { margin-top: 5px; color: var(--muted-light); font-family: var(--mono); font-size: 10px; }
@@ -67,6 +69,9 @@
 .public-source strong { margin-top: 3px; color: var(--muted); font-size: 11px; }
 .public-source p { max-height: 64px; margin: 0; overflow-y: auto; color: var(--ink); font-size: clamp(18px, 1.4vw, 24px); line-height: 1.35; overflow-wrap: anywhere; }
 .public-source.is-speaking { background: #e8f2ee; }
+.public-caption-page.is-focus-view .public-header { display: none; }
+.public-caption-page.is-focus-view .public-caption-main { padding: 0; gap: 0; }
+.public-caption-page.is-focus-view .public-translation-grid { box-shadow: none; }
 
 @keyframes public-live-pulse { 70% { box-shadow: 0 0 0 8px rgba(27, 126, 88, 0); } }
 @keyframes public-reveal { from { opacity: 0; transform: translateY(5px); } }
@@ -83,6 +88,8 @@
   .public-translation-pane > header select { width: min(210px, 100%); height: 36px; background-position: calc(100% - 12px) 15px; font-size: 17px; }
   .public-pane-tools { width: auto; gap: 5px; }
   .public-pane-tools > span { display: none; }
+  .public-focus-button { width: 30px; min-width: 30px; padding: 0; }
+  .public-focus-button span { display: none; }
   .public-auto-scroll { font-size: 9px; }
   .public-auto-scroll > span { width: 28px; }
   .public-segment-list { flex: 1; height: auto; min-height: 0; padding-inline: 12px; }
