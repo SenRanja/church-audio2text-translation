@@ -1,0 +1,12 @@
+[Unit]
+Description=Check for verified Church Translation releases
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+RandomizedDelaySec=20
+Persistent=true
+Unit=church-translation-deploy.service
+
+[Install]
+WantedBy=timers.target

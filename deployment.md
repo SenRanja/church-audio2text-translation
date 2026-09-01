@@ -48,7 +48,29 @@ LOG_LEVEL=info
 ### 并发模型
 
 - 每位用户建立一条独立 WebSocket，并拥有独立的 Deepgram 连接、翻译器、上下文、计时器和翻译队列，不会互相串字幕。
-- `MAX_ACTIVE_SESSIONS=10` 是单个 Node.js 进程的上限；范围为 1 至 100。达到上限时只拒绝新会话，已有会话继续运行。
+生产环境使用宿主机目录 `/srv/church-translation/data` 和 `/srv/church-translation/log` 分别挂载到容器的 `/app/data` 与 `/app/log`。删除或重建容器不会删除这些数据；升级或迁移前仍应停止写入并备份两个目录。生产密钥保存在 `/etc/church-translation/app.env`，部署路径配置保存在 `/etc/church-translation/deploy.env`。数据库、source 文本和密钥都不应放进普通源码归档，备份文件必须限制读取权限。
+
+### 自动发布
+
+`.github/workflows/ci-cd.yml` 在每次推送 `master` 时运行类型检查、测试和生产构建。只有全部通过后，工作流才将该 commit 推进到 `deploy/production` 分支。
+
+RackNerd 上的 `church-translation-deploy.timer` 每两分钟检查一次 `deploy/production`。发现新 commit 后，`deploy/deploy.sh` 将：
+
+1. 构建带 commit SHA 标签的 Docker image。
+2. 使用同一组宿主机数据目录重新创建服务。
+3. 等待容器健康检查通过。
+4. 健康检查失败时恢复上一个可用 image。
+5. 保留当前和上一版 Church Translation image，删除更旧的本项目 image。
+6. 删除 dangling image，并清理超过 7 天的 Docker build cache。
+
+清理不会删除正在运行的 image 或 Docker volume，也不会按其他项目的仓库名删除 image。查看自动发布状态：
+
+```bash
+systemctl status church-translation-deploy.timer
+journalctl -u church-translation-deploy.service -n 100 --no-pager
+cd /opt/church-translation/repo
+docker compose --env-file /etc/church-translation/deploy.env ps
+```
 - 建立 WebSocket 后 10 秒内未发送 `session.start` 的连接会自动关闭并释放名额。
 - 握手速率限制为每个客户端 IP 每分钟至少 30 次，允许同一教会 NAT 网络下多人连接和少量重试。
 - 每个活动会话会占用一条 Deepgram Streaming 连接，并可能同时产生一个 OpenAI 请求。必须先确认供应商账户配额和预算。

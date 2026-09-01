@@ -1,0 +1,15 @@
+[Unit]
+Description=Deploy verified Church Translation release
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=REPO_DIR=/opt/church-translation/repo
+Environment=DEPLOY_ENV=/etc/church-translation/deploy.env
+ExecStart=/opt/church-translation/repo/deploy/deploy.sh
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

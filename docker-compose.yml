@@ -1,12 +1,16 @@
 services:
   church-translation:
-    build: .
-    env_file: .env
+    image: church-translation:${IMAGE_TAG:-local}
+    build:
+      context: .
+      args:
+        VCS_REF: ${VCS_REF:-local}
+    env_file: ${APP_ENV_FILE:-.env}
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
-      - church-auth-data:/app/data
-      - church-source-logs:/app/log
+      - ${APP_DATA_DIR:-./data}:/app/data
+      - ${APP_LOG_DIR:-./log}:/app/log
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
@@ -14,7 +18,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-
-volumes:
-  church-auth-data:
-  church-source-logs:

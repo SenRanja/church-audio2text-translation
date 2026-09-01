@@ -12,6 +12,11 @@ RUN npm run build
 
 FROM node:22-bookworm-slim AS runtime
 
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.title="church-translation" \
+	org.opencontainers.image.source="https://github.com/SenRanja/FOCUS-translation" \
+	org.opencontainers.image.revision="${VCS_REF}"
+
 ENV NODE_ENV=production
 WORKDIR /app
 
