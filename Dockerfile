@@ -1,6 +1,9 @@
 FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends python3 make g++ \
+	&& rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/server/package.json apps/server/package.json
@@ -9,6 +12,18 @@ RUN npm ci
 
 COPY . .
 RUN npm run build
+
+FROM node:22-bookworm-slim AS production-dependencies
+
+WORKDIR /app
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends python3 make g++ \
+	&& rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/package.json
+COPY apps/server/package.json apps/server/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+RUN npm ci --omit=dev && npm cache clean --force
 
 FROM node:22-bookworm-slim AS runtime
 
@@ -24,7 +39,7 @@ COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/server/package.json apps/server/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
-RUN npm ci --omit=dev && npm cache clean --force
+COPY --from=production-dependencies /app/node_modules node_modules
 
 COPY --from=build /app/apps/web/dist apps/web/dist
 COPY --from=build /app/apps/server/dist apps/server/dist
