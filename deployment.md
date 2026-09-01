@@ -37,6 +37,10 @@ PORT=3000
 AUTH_DB_PATH=data/auth.sqlite
 AUTH_COOKIE_SECURE=true
 LOG_LEVEL=info
+
+COMPOSE_PROJECT_NAME=church-translation
+APP_DATA_DIR=/srv/church-translation/data
+APP_LOG_DIR=/srv/church-translation/log
 ```
 
 `ALLOWED_ORIGINS` 必须填写准确的公网 HTTPS Origin，结尾不要加 `/`。HTTPS 部署必须设置 `AUTH_COOKIE_SECURE=true`。不要将 `.env` 提交到版本控制，并且只允许部署账户读取。
@@ -48,35 +52,36 @@ LOG_LEVEL=info
 ### 并发模型
 
 - 每位用户建立一条独立 WebSocket，并拥有独立的 Deepgram 连接、翻译器、上下文、计时器和翻译队列，不会互相串字幕。
-生产环境使用宿主机目录 `/srv/church-translation/data` 和 `/srv/church-translation/log` 分别挂载到容器的 `/app/data` 与 `/app/log`。删除或重建容器不会删除这些数据；升级或迁移前仍应停止写入并备份两个目录。生产密钥保存在 `/etc/church-translation/app.env`，部署路径配置保存在 `/etc/church-translation/deploy.env`。数据库、source 文本和密钥都不应放进普通源码归档，备份文件必须限制读取权限。
-
-### 自动发布
-
-`.github/workflows/ci-cd.yml` 在每次推送 `master` 时运行类型检查、测试和生产构建。只有全部通过后，工作流才将该 commit 推进到 `deploy/production` 分支。
-
-RackNerd 上的 `church-translation-deploy.timer` 每两分钟检查一次 `deploy/production`。发现新 commit 后，`deploy/deploy.sh` 将：
-
-1. 构建带 commit SHA 标签的 Docker image。
-2. 使用同一组宿主机数据目录重新创建服务。
-3. 等待容器健康检查通过。
-4. 健康检查失败时恢复上一个可用 image。
-5. 保留当前和上一版 Church Translation image，删除更旧的本项目 image。
-6. 删除 dangling image，并清理超过 7 天的 Docker build cache。
-
-清理不会删除正在运行的 image 或 Docker volume，也不会按其他项目的仓库名删除 image。查看自动发布状态：
-
-```bash
-systemctl status church-translation-deploy.timer
-journalctl -u church-translation-deploy.service -n 100 --no-pager
-cd /opt/church-translation/repo
-docker compose --env-file /etc/church-translation/deploy.env ps
-```
 - 建立 WebSocket 后 10 秒内未发送 `session.start` 的连接会自动关闭并释放名额。
 - 握手速率限制为每个客户端 IP 每分钟至少 30 次，允许同一教会 NAT 网络下多人连接和少量重试。
 - 每个活动会话会占用一条 Deepgram Streaming 连接，并可能同时产生一个 OpenAI 请求。必须先确认供应商账户配额和预算。
 - 多容器部署时，上限按实例分别计算；若需要严格的全局上限、会话迁移或断线恢复，需要 Redis 或统一准入服务。
 - 操作者 API 和 WebSocket 都要求有效登录；管理员可设置 1 至 720 小时的登录时长，默认 12 小时。每个用户强制只允许一个登录终端，新登录会撤销旧 Cookie 并关闭旧翻译连接。
 - `/api/public/live/:username` 是匿名只读 SSE 字幕流，不调用 Deepgram 或 OpenAI；公开页面地址为 `https://translation.example.org/<username>`。
+
+生产环境使用宿主机目录 `/srv/church-translation/data` 和 `/srv/church-translation/log` 分别挂载到容器的 `/app/data` 与 `/app/log`。删除或重建容器不会删除这些数据；升级或迁移前仍应停止写入并备份两个目录。应用配置和 Compose 路径统一保存在部署 checkout 根目录 `/opt/church-translation/repo/.env`。该文件被 Git 忽略且权限必须为 `600`。
+
+### 自动发布
+
+`.github/workflows/ci-cd.yml` 在每次推送 `master` 时运行类型检查、测试和生产构建。只有全部通过后，工作流才将该 commit 推进到 `deploy/production` 分支。
+
+RackNerd 上的 `church-translation-deploy.timer` 每两分钟检查一次 `deploy/production` 和根目录 `.env`。发现新 commit 或 `.env` 内容变化后，`deploy/deploy.sh` 将：
+
+1. 构建带 commit SHA 标签的 Docker image。
+2. 使用 `.env` 和同一组宿主机数据目录重新创建服务。
+3. 等待容器健康检查通过。
+4. 健康检查失败时恢复上一个可用 image。
+5. 保留当前和上一版 Church Translation image，删除更旧的本项目 image。
+6. 删除 dangling image，并清理超过 7 天的 Docker build cache。
+
+密钥通过 Compose 在容器运行时注入，不会写入 Docker image。清理不会删除正在运行的 image 或其他项目的 image。查看自动发布状态：
+
+```bash
+systemctl status church-translation-deploy.timer
+journalctl -u church-translation-deploy.service -n 100 --no-pager
+cd /opt/church-translation/repo
+docker compose --env-file .env ps
+```
 
 ## 3. 构建并启动
 
@@ -188,7 +193,7 @@ npm run typecheck
 npm run build
 ```
 
-账户和登录会话位于 `data/auth.sqlite`。每个任务的稳定 source 原文保存为 `/app/log/YYYY-MM-DD_HH-mm-ss.txt`，不保存音频、interim 文本或目标语言翻译。Compose 分别使用 `church-auth-data` 和 `church-source-logs` 卷持久化数据库与 source 文本；升级或迁移前应停止容器并备份两个卷。数据库、source 文本和 `.env` 都不应放进普通源码归档，备份文件必须限制读取权限。
+账户和登录会话位于 `/srv/church-translation/data/auth.sqlite`。每个任务的稳定 source 原文保存在 `/srv/church-translation/log`，不保存音频、interim 文本或目标语言翻译。升级或迁移前应备份两个目录。数据库、source 文本和 `.env` 都不应放进普通源码归档，备份文件必须限制读取权限。
 
 ## 6. 回滚
 

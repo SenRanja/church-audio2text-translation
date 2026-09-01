@@ -7,7 +7,7 @@ Requires=docker.service
 [Service]
 Type=oneshot
 Environment=REPO_DIR=/opt/church-translation/repo
-Environment=DEPLOY_ENV=/etc/church-translation/deploy.env
+Environment=ENV_FILE=/opt/church-translation/repo/.env
 ExecStart=/opt/church-translation/repo/deploy/deploy.sh
 Nice=10
 
