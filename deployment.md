@@ -59,7 +59,7 @@ APP_LOG_DIR=/srv/church-translation/log
 - 操作者 API 和 WebSocket 都要求有效登录；管理员可设置 1 至 720 小时的登录时长，默认 12 小时。每个用户强制只允许一个登录终端，新登录会撤销旧 Cookie 并关闭旧翻译连接。
 - `/api/public/live/:username` 是匿名只读 SSE 字幕流，不调用 Deepgram 或 OpenAI；公开页面地址为 `https://translation.example.org/<username>`。
 
-生产环境使用宿主机目录 `/srv/church-translation/data` 和 `/srv/church-translation/log` 分别挂载到容器的 `/app/data` 与 `/app/log`。删除或重建容器不会删除这些数据；升级或迁移前仍应停止写入并备份两个目录。应用配置和 Compose 路径统一保存在部署 checkout 根目录 `/opt/church-translation/repo/.env`。该文件被 Git 忽略且权限必须为 `600`。
+生产环境使用宿主机目录 `/srv/church-translation/data` 和 `/srv/church-translation/log` 分别挂载到容器的 `/app/data` 与 `/app/log`。删除或重建容器不会删除这些数据；升级或迁移前仍应停止写入并备份两个目录。应用配置和 Compose 路径统一保存在部署 checkout 根目录 `/root/FOCUS-translation/.env`。该文件被 Git 忽略且权限必须为 `600`。
 
 ### 自动发布
 
@@ -79,7 +79,7 @@ RackNerd 上的 `church-translation-deploy.timer` 每两分钟检查一次 `depl
 ```bash
 systemctl status church-translation-deploy.timer
 journalctl -u church-translation-deploy.service -n 100 --no-pager
-cd /opt/church-translation/repo
+cd /root/FOCUS-translation
 docker compose --env-file .env ps
 ```
 

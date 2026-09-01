@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly REPO_DIR="${REPO_DIR:-/opt/church-translation/repo}"
+readonly REPO_DIR="${REPO_DIR:-/root/FOCUS-translation}"
 readonly ENV_FILE="${ENV_FILE:-$REPO_DIR/.env}"
 readonly REVISION_FILE="${REVISION_FILE:-/var/lib/church-translation/current-revision}"
 readonly CONFIG_HASH_FILE="${CONFIG_HASH_FILE:-/var/lib/church-translation/current-config-hash}"

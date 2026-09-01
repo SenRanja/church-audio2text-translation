@@ -6,9 +6,9 @@ Requires=docker.service
 
 [Service]
 Type=oneshot
-Environment=REPO_DIR=/opt/church-translation/repo
-Environment=ENV_FILE=/opt/church-translation/repo/.env
-ExecStart=/opt/church-translation/repo/deploy/deploy.sh
+Environment=REPO_DIR=/root/FOCUS-translation
+Environment=ENV_FILE=/root/FOCUS-translation/.env
+ExecStart=/root/FOCUS-translation/deploy/deploy.sh
 Nice=10
 
 [Install]
