@@ -38,4 +38,75 @@ docker compose up --build -d
 
 Production must use HTTPS/WSS; browsers block microphone and system audio access on insecure origins.
 
+## Manual npm Operation
+
+Node.js 22 or newer is required. Both production and development modes read the repository-root `.env` file.
+
+Install dependencies and build the web and server applications:
+
+```bash
+npm ci
+npm run build
+```
+
+Start the previously built production application in the foreground:
+
+```bash
+npm start
+```
+
+Press `Ctrl+C` to stop it. After pulling code changes, run `npm ci` and `npm run build` again before starting it. For local development with automatic reloads, use:
+
+```bash
+npm run dev
+```
+
+## Manual Docker Operation
+
+Run these commands from the repository root. Compose uses `.env` for build settings and injects it into the running application.
+
+```bash
+# Build and start in the background
+docker compose --env-file .env up -d --build
+
+# Show container status
+docker compose --env-file .env ps
+
+# Follow application logs; press Ctrl+C to stop following
+docker compose --env-file .env logs -f church-translation
+
+# Stop without deleting the container
+docker compose --env-file .env stop church-translation
+
+# Start an existing stopped container
+docker compose --env-file .env start church-translation
+
+# Restart the container
+docker compose --env-file .env restart church-translation
+
+# Rebuild after code or .env changes and recreate the container
+docker compose --env-file .env build --pull church-translation
+docker compose --env-file .env up -d --no-build --force-recreate church-translation
+
+# Stop and remove this Compose project's container and network
+docker compose --env-file .env down
+```
+
+The configured host data and log directories are not removed by `docker compose down`.
+
+On a production host using the automatic deployment timer, pause it before taking manual control so it does not restart or replace the container:
+
+```bash
+sudo systemctl stop church-translation-deploy.timer
+# Run the required docker compose commands here.
+sudo systemctl start church-translation-deploy.timer
+```
+
+To run one normal CI-promoted deployment manually instead, use:
+
+```bash
+sudo systemctl start church-translation-deploy.service
+sudo journalctl -u church-translation-deploy.service -n 100 --no-pager
+```
+
 [Deployment Guide](deployment.md) · [Developer Documentation](developer.md)
